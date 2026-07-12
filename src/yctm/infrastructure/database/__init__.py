@@ -1,0 +1,1 @@
+"""Persistenza SQLite tramite SQLAlchemy."""

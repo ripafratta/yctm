@@ -1,0 +1,80 @@
+"""Modelli ORM del registro operativo."""
+
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from yctm.domain.models import AcquisitionStatus
+
+
+class Base(DeclarativeBase):
+    """Base dei modelli SQLAlchemy."""
+
+
+class Channel(Base):
+    __tablename__ = "channels"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    handle: Mapped[str | None] = mapped_column(String, nullable=True)
+    title: Mapped[str] = mapped_column(String)
+    uploads_playlist_id: Mapped[str] = mapped_column(String, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now
+    )
+
+
+class Video(Base):
+    __tablename__ = "videos"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    channel_id: Mapped[str | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
+    title: Mapped[str] = mapped_column(String)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    status: Mapped[str] = mapped_column(String, default=AcquisitionStatus.PENDING)
+    attempt_count: Mapped[int] = mapped_column(default=0)
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now
+    )
+    transcript_file: Mapped["TranscriptFile | None"] = relationship(
+        back_populates="video", uselist=False
+    )
+
+    def register_failure(self, message: str) -> None:
+        """Registra un errore e rende terminale il terzo tentativo."""
+        self.attempt_count = (self.attempt_count or 0) + 1
+        self.last_attempt_at = datetime.now()
+        self.last_error = message
+        self.status = (
+            AcquisitionStatus.TERMINAL_ERROR
+            if self.attempt_count >= 3
+            else AcquisitionStatus.RETRYABLE_ERROR
+        )
+
+
+class TranscriptFile(Base):
+    __tablename__ = "transcript_files"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[str] = mapped_column(ForeignKey("videos.id"), unique=True)
+    storage_path: Mapped[str] = mapped_column(String)
+    sha256: Mapped[str] = mapped_column(String)
+    language_code: Mapped[str] = mapped_column(String)
+    extracted_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    video: Mapped["Video"] = relationship(back_populates="transcript_file")
+
+
+class Playlist(Base):
+    __tablename__ = "playlists"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    title: Mapped[str] = mapped_column(String)
+    channel_id: Mapped[str | None] = mapped_column(ForeignKey("channels.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.now, onupdate=datetime.now
+    )

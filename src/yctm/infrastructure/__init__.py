@@ -1,0 +1,1 @@
+"""Adattatori verso risorse esterne."""
