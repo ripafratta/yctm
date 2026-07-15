@@ -236,3 +236,29 @@ def rebuild_manifest_command(
         typer.echo(f"Manifest generato con {count} record in {settings.manifest_path}.")
     finally:
         session.close()
+
+
+@app.command("reset")
+def reset_videos_command(
+    target: str = typer.Argument(help="Stato da resettare: 'retryable', 'terminal' o 'all'"),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Log dettagliato"),
+) -> None:
+    """Reimposta a pending i video in uno stato di errore."""
+    _setup_logging(verbose)
+    if target not in ("retryable", "terminal", "all"):
+        typer.echo(
+            f"Errore: target '{target}' non valido. Scegli 'retryable', 'terminal' o 'all'.",
+            err=True,
+        )
+        raise typer.Exit(code=2)
+
+    settings = _get_settings()
+
+    from yctm.application.reset import reset_videos
+
+    session = _get_session(settings)
+    try:
+        result = reset_videos(session, target)  # type: ignore[arg-type]
+        typer.echo(result)
+    finally:
+        session.close()

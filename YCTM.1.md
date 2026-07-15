@@ -9,8 +9,10 @@ SINTASSI
        yctm init-db [--verbose]
        yctm channel [--verbose] <identificativo>
        yctm sync [--verbose] [--max-results N] [--interactive] <channel-id>
+                               (default: valore da configurazione)
        yctm playlist [--verbose] <identificativo>
        yctm playlist-sync [--verbose] [--max-results N] [--interactive] <playlist-id>
+                               (default: valore da configurazione)
        yctm manifest [--verbose]
 
 DESCRIZIONE
@@ -85,10 +87,10 @@ COMANDI
 
        Opzioni:
            --max-results N     Numero massimo di video da analizzare
+                               (default: valore da configurazione)
            -i, --interactive   Chiede conferma prima di scaricare ogni
                                trascrizione (utile per selezionare solo
                                i video di interesse)
-                               (default: valore da configurazione)
            -v, --verbose       Output di logging dettagliato
 
        Codici di uscita:
@@ -132,10 +134,10 @@ COMANDI
 
        Opzioni:
            --max-results N     Numero massimo di video da analizzare
+                               (default: valore da configurazione)
            -i, --interactive   Chiede conferma prima di scaricare ogni
                                trascrizione (utile per selezionare solo
                                i video di interesse)
-                               (default: valore da configurazione)
            -v, --verbose       Output di logging dettagliato
 
        Codici di uscita:

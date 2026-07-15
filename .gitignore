@@ -6,4 +6,3 @@ __pycache__/
 .ruff_cache/
 .serena/
 data/*
-!data/yctm.sqlite3

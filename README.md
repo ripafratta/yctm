@@ -62,6 +62,23 @@ yctm manifest rebuild                           # rigenera il manifest JSONL
 4. Se la trascrizione non e' disponibile, vengono effettuati fino a 3 tentativi
 5. Dopo il terzo fallimento il video passa a `terminal_error`
 
+### Modalità interattiva
+
+Usando il flag `--interactive` (o `-i`) con `sync` o `playlist-sync`,
+il programma mostra ogni nuovo video scoperto e chiede conferma prima di
+scaricarne la trascrizione:
+
+```
+Vito Lops — "Mercati al bivio: rimbalzo tech o nuova ondata di volatilità?" (2026-07-12)
+  Scaricare la trascrizione? [Y/n]:
+```
+
+- **Invio / Y / yes** → scarica la trascrizione
+- **n / no** → salta il video (ricomparirà alla prossima sincronizzazione)
+
+Utile per selezionare solo i video che trattano argomenti di interesse,
+senza sprecare quota API o riempire il database di contenuti non voluti.
+
 ## Contratto JSONL
 
 Il manifest contiene una riga JSON per ogni video processato. Il consumatore LLM Wiki

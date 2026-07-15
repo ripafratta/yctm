@@ -1,5 +1,7 @@
 """Repository per lo stato operativo di YCTM."""
 
+from datetime import datetime
+
 from sqlalchemy.orm import Session
 
 from yctm.infrastructure.database.models import Channel, Playlist, TranscriptFile, Video
@@ -42,6 +44,26 @@ class VideoRepository:
         """Registra un video non ancora presente."""
         self._session.add(video)
         return video
+
+    def find_by_status(self, status: str) -> list[Video]:
+        """Restituisce tutti i video con lo stato specificato."""
+        return list(self._session.query(Video).filter(Video.status == status).all())
+
+    def reset_to_pending(self, status_filter: str) -> int:
+        """Reimposta a pending tutti i video con lo stato indicato.
+
+        Resetta anche attempt_count, last_attempt_at e last_error.
+        Restituisce il numero di video modificati.
+        """
+        now = datetime.now()
+        videos = self.find_by_status(status_filter)
+        for video in videos:
+            video.status = "pending"
+            video.attempt_count = 0
+            video.last_attempt_at = None
+            video.last_error = None
+            video.updated_at = now
+        return len(videos)
 
 
 class TranscriptFileRepository:
