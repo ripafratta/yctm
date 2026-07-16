@@ -3,9 +3,12 @@ name: yctm
 description: "Advanced operations for YouTube Channel Transcript Monitor (YCTM). Use this skill to perform batch synchronization, database maintenance, proxy rotation, and integration with LLM Wiki downstream pipelines."
 ---
 
-# YCTM Advanced Operations Skill
+# YCTM Operations Skill
 
 Questa skill fornisce istruzioni operative, script e query SQL per l'utilizzo avanzato di **YouTube Channel Transcript Monitor (YCTM)**. È progettata sia per gli operatori umani che per agenti AI che devono orchestrare YCTM in scenari di produzione, gestire grandi volumi di dati o risolvere problemi di quota e rate-limiting.
+
+> **Installazione specifica per piattaforma:** vedi [references/](references/) per
+> guide dedicate a Claude Code, Codex, Gemini CLI e altri agenti.
 
 ---
 

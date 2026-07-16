@@ -1,16 +1,17 @@
-# Documento di Progettazione e Piano di Implementazione: YouTube Channel Transcript Monitor (YCTM)
+# Specifica Architetturale: YouTube Channel Transcript Monitor (YCTM)
 
-Il presente documento definisce le specifiche architetturali e il piano di implementazione per lo sviluppo di YCTM. Il progetto è concepito come uno strumento a riga di comando (CLI) ad esecuzione manuale (on-demand), finalizzato all'estrazione e all'archiviazione incrementale delle trascrizioni di canali YouTube. L'obiettivo primario è l'alimentazione strutturata di una base di conoscenza per modelli linguistici (LLM Wiki), con particolare riferimento a domini rigorosi (come la finanza personale) in cui l'integrità del contesto rende inapplicabili le logiche di frammentazione del testo (chunking).
+Il presente documento definisce le specifiche architetturali di YCTM, uno strumento a riga di comando (CLI) ad esecuzione manuale (on-demand), finalizzato all'estrazione e all'archiviazione incrementale delle trascrizioni di canali e playlist YouTube. L'obiettivo primario è l'alimentazione strutturata di una base di conoscenza per modelli linguistici (LLM Wiki), con particolare riferimento a domini rigorosi (come la finanza personale) in cui l'integrità del contesto rende inapplicabili le logiche di frammentazione del testo (chunking).
 
 ## 1. Architettura Generale del Sistema
 
 Il sistema adotta un'architettura modulare priva di demoni in background. L'esecuzione è innescata esclusivamente da comandi impartiti dall'utente tramite CLI. I macro-componenti del sistema sono:
 
-* **Modulo di Interfaccia CLI:** Gestisce i parametri di input, il routing dei comandi e l'output a terminale (stdout).
-* **Modulo di Rilevamento (Discovery):** Interroga la YouTube Data API v3 per individuare i nuovi video, limitando le chiamate agli ultimi contenuti caricati e implementando una logica di interruzione anticipata (early exit) basata sullo stato locale.
-* **Modulo di Estrazione:** Utilizza la libreria `youtube-transcript-api` per il recupero anonimo dei sottotitoli, applicando una rigorosa gerarchia di fallback linguistico.
-* **Livello di Persistenza e Governance:** Si affida a SQLAlchemy con motore SQLite locale per mantenere l'inventario dei canali e l'audit trail dei video elaborati, garantendo la deduplicazione.
-* **Sottosistema di Archiviazione:** Salva le trascrizioni su file system (in formato testo o Markdown) preservando l'unitarietà del documento per l'ingestione nella Wiki.
+* **Modulo di Interfaccia CLI:** Gestisce i parametri di input, il routing dei comandi e l'output a terminale (stdout). Implementato con **Typer**.
+* **Modulo di Configurazione:** Gestisce le variabili d'ambiente e il file `.env` tramite `pydantic-settings` (API key YouTube, percorsi database e trascrizioni, limite massimo risultati).
+* **Modulo di Rilevamento (Discovery):** Interroga la YouTube Data API v3 tramite **httpx** per individuare i nuovi video da canali e playlist, limitando le chiamate agli ultimi N contenuti caricati e implementando una logica di interruzione anticipata (early exit) basata sullo stato locale.
+* **Modulo di Estrazione:** Utilizza la libreria `youtube-transcript-api` per il recupero anonimo dei sottotitoli, applicando una rigorosa gerarchia di fallback linguistico (manuale IT → manuale EN → ASR IT → ASR EN). Include un delay di 2 secondi tra richieste consecutive per mitigare i blocchi IP.
+* **Livello di Persistenza e Governance:** Si affida a SQLAlchemy 2.x con motore SQLite locale per mantenere l'inventario di canali e playlist, l'audit trail dei video elaborati e la macchina a stati di acquisizione, garantendo la deduplicazione.
+* **Sottosistema di Archiviazione:** Salva le trascrizioni su file system in formato Markdown con frontmatter YAML, preservando l'unitarietà del documento per l'ingestione nella Wiki.
 
 ## 2. Modello Dati e Livello di Persistenza
 
@@ -27,21 +28,65 @@ Rappresenta il canale sorgente e i parametri di configurazione associati.
 
 ### Entità `Video`
 
-Traccia i contenuti analizzati e collega le entità al file system locale.
+Traccia i contenuti analizzati e il loro stato di acquisizione.
 
 * `id` (String, Primary Key): Identificativo canonico del video di YouTube.
-* `channel_id` (String, Foreign Key): Collegamento all'entità `Channel`.
+* `channel_id` (String, Foreign Key): Collegamento all'entità `Channel` (nullable per video da playlist di canali non registrati).
 * `title` (String): Titolo del video.
-* `published_at` (DateTime): Data e ora di pubblicazione.
-* `extraction_date` (DateTime): Timestamp dell'avvenuta archiviazione locale.
-* `storage_path` (String): Percorso assoluto o relativo del file contenente la trascrizione integrale.
-* `language_code` (String): Lingua effettiva della trascrizione estratta (es. `it`, `en`).
+* `published_at` (DateTime, nullable): Data e ora di pubblicazione.
+* `status` (String, default `pending`): Stato di acquisizione (`pending`, `stored`, `retryable_error`, `terminal_error`).
+* `attempt_count` (Integer, default 0): Numero di tentativi di estrazione effettuati.
+* `last_attempt_at` (DateTime, nullable): Timestamp dell'ultimo tentativo.
+* `last_error` (String, nullable): Messaggio di errore dell'ultimo tentativo fallito.
 
-## 3. Flussi Operativi e Logica di Sincronizzazione
+### Entità `TranscriptFile`
 
-Il sistema deve implementare due flussi di esecuzione principali.
+Memorizza la referenza al file di trascrizione archiviato su disco.
 
-### A. Registrazione Iniziale del Canale
+* `id` (Integer, Primary Key): Identificativo interno autoincrementale.
+* `video_id` (String, Foreign Key, UNIQUE): Collegamento 1:1 all'entità `Video`.
+* `storage_path` (String): Percorso del file `.md` contenente la trascrizione.
+* `sha256` (String): Hash SHA-256 del file per verifica d'integrità.
+* `language_code` (String): Lingua effettiva della trascrizione (es. `it`, `en`).
+* `extracted_at` (DateTime): Timestamp di creazione del file.
+
+### Entità `Playlist`
+
+Rappresenta una playlist YouTube registrata per la sincronizzazione.
+
+* `id` (String, Primary Key): Identificativo canonico della playlist (prefisso `PL...`).
+* `title` (String): Titolo descrittivo della playlist.
+* `channel_id` (String, Foreign Key, nullable): Collegamento opzionale all'entità `Channel` proprietario.
+
+## 3. Macchina a Stati dei Video
+
+Ogni video attraversa i seguenti stati durante il suo ciclo di vita:
+
+```
+        ┌──────────────────────────────────────────┐
+        │                                          │
+        ▼                                          │
+    ┌─────────┐     tentativo (max 3)          ┌──────────────────┐
+    │ pending ├────────────────────────────────►│ retryable_error  │
+    └────┬────┘    fallimento                   └────────┬─────────┘
+         │                                               │
+         │ successo                           3 fallimenti│
+         ▼                                               ▼
+    ┌────────┐                                   ┌────────────────┐
+    │ stored │ (terminale)                       │ terminal_error │ (terminale)
+    └────────┘                                   └────────────────┘
+```
+
+* `pending`: In attesa di elaborazione.
+* `stored`: Trascrizione acquisita con successo (**terminale**: attiva early exit).
+* `retryable_error`: Errore temporaneo (blocco IP, trascrizione non ancora disponibile). Ritentato fino a 3 volte.
+* `terminal_error`: Fallimento permanente dopo 3 tentativi, o trascrizioni disabilitate (**terminale**: attiva early exit).
+
+## 4. Flussi Operativi e Logica di Sincronizzazione
+
+Il sistema deve implementare i seguenti flussi di esecuzione.
+
+### A. Registrazione Iniziale del Canale / Playlist
 
 Comando deputato all'aggiunta di una nuova fonte. L'agente dovrà implementare le seguenti operazioni:
 
@@ -49,6 +94,8 @@ Comando deputato all'aggiunta di una nuova fonte. L'agente dovrà implementare l
 2. Invocazione della YouTube Data API v3 per ottenere il `Channel ID` univoco.
 3. Calcolo algoritmico del `uploads_playlist_id`.
 4. Inserimento del record nella tabella `Channel` (se non preesistente).
+
+La registrazione di una playlist segue lo stesso pattern: risoluzione dell'ID playlist da URL o input diretto, recupero dei metadati tramite YouTube Data API v3 (`/playlists`), inserimento nella tabella `Playlist`.
 
 ### B. Sincronizzazione Incrementale (Discovery e Download)
 
@@ -64,51 +111,85 @@ Comando di aggiornamento eseguito on-demand. L'algoritmo deve seguire rigorosame
 * Sottotitolo generato automaticamente (ASR) secondario.
 
 
-5. **Archiviazione Documentale:** Il testo acquisito non deve subire alcun processo di chunking. Deve essere unificato in un unico blocco testuale, corredato da frontmatter YAML con i metadati del video, e salvato su disco in formato Markdown in una directory predefinita. Il nome del file deve essere normalizzato (es. `{published_at}_{video_id}_{title}.md`).
-6. **Commit dello Stato:** Inserimento del record in `Video` con il corrispondente `storage_path`. Le operazioni di salvataggio file e commit su DB devono essere gestite in un contesto transazionale per evitare disallineamenti in caso di errore I/O.
+5. **Delay tra richieste:** Per mitigare i blocchi IP da parte di YouTube (l'endpoint `youtube-transcript-api` non è ufficiale), viene applicato un delay di **2 secondi** tra una richiesta di estrazione e la successiva, tramite struttura `try/except/else/finally` che garantisce l'esecuzione sia in caso di successo che di errore.
+6. **Archiviazione Documentale:** Il testo acquisito non deve subire alcun processo di chunking. Deve essere unificato in un unico blocco testuale, corredato da frontmatter YAML con i metadati del video (canale, titolo, lingua, data, descrizione, URL sorgente), e salvato su disco in formato **Markdown** (`.md`) in una directory predefinita. Il nome del file segue la convenzione `{YYYYMMDD}_{video_id}_{titolo_sanificato}.md`.
+7. **Commit dello Stato:** Inserimento del record in `Video` e `TranscriptFile`. Le operazioni di salvataggio file e commit su DB devono essere gestite in un contesto transazionale per evitare disallineamenti in caso di errore I/O (scrittura su file temporaneo, rinomina atomica, rollback compensativo in caso di fallimento DB).
 
-## 4. Gestione delle Eccezioni
+### C. Sincronizzazione Playlist
 
-L'agente implementatore deve prevedere blocchi `try/except` specifici per isolare e gestire le seguenti casistiche senza interrompere l'esecuzione complessiva del batch:
+Il comando `playlist-sync` segue la medesima logica di `sync`, operando sulla playlist specificata invece che sulla playlist Uploads del canale. I video scoperti condividono la tabella `videos` globale: se uno stesso video è già stato acquisito tramite un canale, non viene rielaborato.
 
-* `TranscriptsDisabled`: Il video non permette le trascrizioni. Il sistema deve generare un avviso a terminale e opzionalmente salvare un record con `storage_path` nullo o flag di salto.
-* `NoTranscriptFound`: Trascrizione non ancora generata dai server di Google. Il video deve essere scartato nella run corrente, senza essere inserito in SQLite; verrà naturalmente rielaborato alla successiva sincronizzazione.
-* Errori di Rete e Limiti di Quota HTTP 429: Implementazione di un blocco dell'esecuzione con messaggistica chiara verso l'utente, suggerendo l'uso opzionale di proxy tramite variabili d'ambiente.
+### D. Modalità Interattiva
 
-## 5. Stack Tecnologico e Linee Guida per il Codice
+I comandi `sync` e `playlist-sync` supportano il flag `--interactive` (`-i`) che, dopo il discovery, mostra ogni video con autore, titolo e data e chiede conferma all'utente prima di scaricare la trascrizione. I video non confermati vengono saltati senza essere registrati nel database; ricompariranno alla prossima sincronizzazione.
 
-L'agente dovrà generare il codice basandosi sulle seguenti librerie standard di settore, garantendo un approccio "clean code":
+### E. Reset dello Stato
 
-* **Interfaccia CLI:** `Typer` (fortemente consigliato per il parsing dei parametri basato su annotazioni di tipo) o `Click`.
-* **Database e ORM:** `SQLAlchemy` 2.x (configurato per connettore `sqlite:///`).
-* **Integrazione YouTube API:** `google-api-python-client` per l'interazione con gli endpoint ufficiali (lettura metadati).
-* **Estrazione Testo:** `youtube-transcript-api`.
-* **Gestione Configurazione:** `pydantic-settings` o `python-dotenv` per il caricamento delle credenziali API e dei percorsi di base delle directory.
+Il comando `yctm reset` permette di reimpostare a `pending` i video in stato di errore:
 
-Il codice dovrà presentare una chiara separazione degli strati di responsabilità (es. `cli.py` per l'interfaccia, `youtube_client.py` per le integrazioni esterne, `database.py` per i modelli SQLAlchemy, `core.py` per la logica di orchestrazione). Tutto il codice dovrà essere compatibile con le convenzioni moderne di Python (versione >= 3.10) e utilizzare rigorosamente la tipizzazione statica (type hints).
+* `yctm reset retryable` → resetta i video in `retryable_error`
+* `yctm reset terminal` → resetta i video in `terminal_error`
+* `yctm reset all` → resetta entrambi
 
+## 5. Gestione delle Eccezioni
 
+I blocchi `try/except` devono isolare e gestire le seguenti casistiche senza interrompere l'esecuzione complessiva del batch:
 
-# YouTube Channel Transcript Monitor (YCTM) - Implementazione e Stack Tecnologico
+* `TranscriptsDisabled` (`youtube-transcript-api`): Trascrizioni permanentemente disabilitate. Il video viene marcato come `terminal_error` immediatamente.
+* `NoTranscriptFound` (`youtube-transcript-api`): Trascrizione non ancora generata o blocco IP. Il video viene marcato come `retryable_error` e ritentato fino a 3 tentativi. Al terzo fallimento diventa `terminal_error`.
+* Fallback linguistico assente: Nessuna trascrizione trovata in italiano o inglese. Marcato come `retryable_error`.
+* Blocco IP: YouTube può bloccare l'IP per troppe richieste all'endpoint `youtube-transcript-api`. Il sistema applica un delay di 2 secondi tra le richieste. Se il blocco persiste, l'errore viene mappato come `retryable_error`. È possibile configurare un proxy via variabili d'ambiente `HTTP_PROXY` / `HTTPS_PROXY`.
+* Quota API YouTube: La YouTube Data API v3 ha una quota giornaliera (default 10.000 unità). Il superamento durante il discovery interrompe immediatamente il batch senza creare record orfani.
+* Errori di rete generici: Catturati come `TranscriptExtractionError`, vengono registrati e il video passa a `retryable_error`.
 
-Per l'implementazione del progetto YouTube Channel Transcript Monitor (YCTM) secondo i requisiti architetturali definiti (esecuzione on-demand, interfaccia a riga di comando, archiviazione incrementale su database relazionale e mantenimento dell'unitarietà del documento), è possibile riutilizzare un ecosistema specifico di librerie Python e trarre pattern di design da alcuni progetti open source esistenti.
+## 6. Stack Tecnologico e Linee Guida per il Codice
 
-Di seguito si individuano gli strumenti e i software da impiegare, suddivisi per livello architetturale.
+Il codice si basa sulle seguenti librerie standard di settore, con approccio "clean code":
 
-### Librerie Python (Stack Tecnologico)
+* **Interfaccia CLI:** `Typer` (parsing dei parametri basato su annotazioni di tipo).
+* **Database e ORM:** `SQLAlchemy` 2.x (connettore `sqlite:///`).
+* **YouTube Data API v3:** `httpx` per le chiamate REST agli endpoint ufficiali Google (risoluzione canali/playlist, discovery playlistItems).
+* **Estrazione Trascrizioni:** `youtube-transcript-api`.
+* **Configurazione:** `pydantic-settings` per il caricamento di credenziali API e percorsi da ambiente o `.env`.
 
-Queste librerie costituiscono le fondamenta del codice da sviluppare e devono essere integrate direttamente come dipendenze del progetto:
+### Struttura del Pacchetto
 
-* **youtube-transcript-api**: Libreria fondamentale (manutenuta da *jdepoix*) per l'estrazione del payload testuale. Interagisce con gli endpoint interni del riproduttore web, bypassando i protocolli di autenticazione dell'API ufficiale di Google. Integra i metodi necessari per implementare la gerarchia di fallback linguistico (es. distinzione tra sottotitoli manuali e autogenerati).
-* **google-api-python-client**: Client ufficiale necessario esclusivamente per il modulo di rilevamento (discovery). Verrà impiegato per interrogare la YouTube Data API v3, risolvere l'identificativo canonico del canale e recuperare la lista ordinata degli ultimi *N* video caricati tramite la playlist automatica "Uploads".
-* **SQLAlchemy (versione 2.x)**: Strumento ORM (Object-Relational Mapping) per la gestione del livello di persistenza. Astre le query SQL e gestisce il database locale (SQLite), garantendo l'integrità referenziale tra i canali e i video scaricati e operando come motore di deduplicazione.
-* **Typer**: Framework per la costruzione dell'interfaccia a riga di comando (CLI). Basato su Pydantic, sfrutta la tipizzazione statica di Python (type hints) per validare automaticamente i parametri di input e generare la documentazione di aiuto a terminale, risultando più moderno e conciso rispetto al tradizionale `argparse` o a `Click`.
-* **pydantic-settings** (o in alternativa **python-dotenv**): Modulo per la gestione rigorosa delle configurazioni. Necessario per isolare le credenziali sensibili (chiavi API di Google) e i parametri di sistema (percorsi delle directory di archiviazione locale) all'interno di file `.env`.
+```
+src/yctm/
+  cli/
+    app.py                 Applicazione Typer e comandi
+  config/
+    settings.py            Settings da ambiente/.env
+  domain/
+    models.py              Tipi di dominio, stati ed errori
+  application/
+    channels.py            Registrazione canali
+    playlists.py           Registrazione e sincronizzazione playlist
+    synchronization.py     Discovery, retry e orchestrazione
+    manifest.py            Proiezione del manifest JSONL
+    reset.py               Reset stati di errore
+  infrastructure/
+    database/
+      models.py            ORM SQLAlchemy
+      session.py           Engine, sessioni e inizializzazione schema
+      repositories.py      Persistenza canali, video, file e playlist
+    youtube/
+      data_api.py          Client HTTP YouTube Data API v3
+      transcripts.py       Client e fallback youtube-transcript-api
+    filesystem/
+      transcripts.py       Nomi sicuri, scrittura atomica e hash SHA-256
+tests/
+  unit/                    Test con mock delle API esterne
+```
 
-### Progetti Open Source di Riferimento (Pattern e Logiche)
+### Comandi CLI Pubblici
 
-Sebbene il codice di YCTM debba essere scritto ex novo per garantire aderenza ai requisiti specifici, i seguenti progetti open source offrono logiche implementative e pattern architetturali da cui prelevare specifiche porzioni di codice:
-
-* **ytfetcher**: Modello di riferimento primario per l'implementazione della CLI. Il progetto dimostra come strutturare in modo efficiente il passaggio dei parametri a riga di comando (incluso il parametro `max_results` per limitare il raggio d'azione agli ultimi caricamenti) e come esportare il testo preservandone l'unitarietà, senza forzare processi di chunking.
-* **youtube-transcripts-get**: Costituisce il riferimento algoritmico per l'implementazione della sincronizzazione incrementale. La logica di questo progetto illustra l'interruzione anticipata (early exit) del ciclo di interrogazione: quando l'algoritmo incontra un identificativo già presente nel tracciamento locale, arresta immediatamente le chiamate di rete, ottimizzando i tempi di esecuzione e azzerando gli sprechi di quota API.
-* **youtube-channel-transcript-downloader**: Utile come riferimento per le procedure di normalizzazione e archiviazione su file system. Mostra metodologie efficaci per la pulizia delle stringhe testuali (title sanitization) destinate ai nomi dei file e per il salvataggio dei documenti in formato "plain text" grezzo, essenziale per una successiva elaborazione (ingestion) pulita all'interno della LLM Wiki.
+| Comando | Descrizione |
+|---------|------------|
+| `init-db` | Inizializza il database SQLite |
+| `channel` | Registra un canale YouTube |
+| `sync` | Sincronizza le trascrizioni di un canale |
+| `playlist` | Registra una playlist YouTube |
+| `playlist-sync` | Sincronizza le trascrizioni di una playlist |
+| `reset` | Reimposta a pending i video in errore |
+| `manifest` | Rigenera il manifest JSONL |

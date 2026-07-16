@@ -9,13 +9,44 @@ destinato all'ingestione in sistemi LLM (LLM Wiki).
 
 ## Installazione
 
+### CLI (richiesto)
+
 ```bash
-git clone <url> && cd yctm
+git clone https://github.com/ripafratta/yctm.git && cd yctm
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-pip install -e ".[dev]"    # dipendenze sviluppo (opzionale)
+pip install -e ".[dev]"    # dipendenze sviluppo (opzionale, per test/lint)
 ```
+
+Verifica che funzioni:
+
+```bash
+yctm --help
+```
+
+### Skill per agenti AI (opzionale)
+
+YCTM include una skill (`skills/yctm/`) che fornisce procedure operative,
+automazione e diagnostica per agenti AI. La skill richiede la CLI installata
+(passaggio precedente) per funzionare.
+
+#### Claude Code
+
+```bash
+# Estrai il pacchetto nella directory skills utente
+mkdir -p ~/.claude/skills
+unzip -o skills/yctm.skill -d ~/.claude/skills/
+# Oppure copia la directory direttamente
+cp -r skills/yctm ~/.claude/skills/yctm
+```
+
+Riavvia Claude Code: la skill `/yctm` sarà disponibile automaticamente.
+
+#### Altri agenti (Codex, Gemini CLI, etc.)
+
+Vedi [skills/yctm/references/](skills/yctm/references/) per le istruzioni
+specifiche per ogni piattaforma.
 
 ## Configurazione
 
@@ -37,9 +68,10 @@ La configurazione viene letta da variabili ambiente o dal file `.env`.
 yctm init-db                                    # inizializza il database
 yctm channel "https://www.youtube.com/@canale"  # registra un canale
 yctm sync UC... --max-results 5                 # sincronizza trascrizioni
-yctm sync UC... --max-results 5 --interactive   # modalità interattiva: chiede conferma per ogni video
+yctm sync UC... --max-results 5 --interactive   # chiede conferma per ogni video
 yctm playlist "https://youtube.com/playlist?list=PL..."  # registra una playlist
 yctm playlist-sync PL... --max-results 10       # sincronizza playlist
+yctm reset retryable                            # resetta i video in errore temporaneo a pending
 yctm manifest rebuild                           # rigenera il manifest JSONL
 ```
 
@@ -52,6 +84,7 @@ yctm manifest rebuild                           # rigenera il manifest JSONL
 | `sync` | Sincronizza le trascrizioni di un canale |
 | `playlist` | Registra una playlist YouTube |
 | `playlist-sync` | Sincronizza le trascrizioni di una playlist |
+| `reset` | Reimposta a pending i video in errore (`retryable` / `terminal` / `all`) |
 | `manifest` | Rigenera il manifest JSONL |
 
 ## Sincronizzazione incrementale
@@ -78,6 +111,26 @@ Vito Lops — "Mercati al bivio: rimbalzo tech o nuova ondata di volatilità?" (
 
 Utile per selezionare solo i video che trattano argomenti di interesse,
 senza sprecare quota API o riempire il database di contenuti non voluti.
+
+### Reset dei video in errore
+
+Se YouTube blocca l'IP o la trascrizione non e' disponibile, i video vengono
+marcati come `retryable_error` e ritentati fino a 3 volte. Per forzare un
+nuovo tentativo prima dei 3:
+
+```bash
+yctm reset retryable    # resetta i video in retryable_error → pending
+yctm reset terminal     # resetta i video in terminal_error → pending
+yctm reset all          # resetta entrambi
+```
+
+## Skill per agenti AI
+
+YCTM include una skill (`skills/yctm/`) con procedure operative per agenti AI:
+
+- **Pacchetto**: `skills/yctm.skill`
+- **Directory sorgente**: `skills/yctm/`
+- **Istruzioni per ogni piattaforma**: [skills/yctm/references/](skills/yctm/references/)
 
 ## Contratto JSONL
 
