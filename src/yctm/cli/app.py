@@ -238,6 +238,36 @@ def rebuild_manifest_command(
         session.close()
 
 
+@app.command("auth")
+def auth_command(
+    no_browser: bool = typer.Option(
+        False, "--no-browser", help="Modalità headless (incolla il codice su console)"
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Log dettagliato"),
+) -> None:
+    """Autentica YCTM con OAuth 2.0 per YouTube Data API (captions.download)."""
+    _setup_logging(verbose)
+    settings = _get_settings()
+
+    from yctm.infrastructure.youtube.auth import run_oauth_flow
+
+    try:
+        creds = run_oauth_flow(
+            client_id=settings.youtube_client_id,
+            client_secret=settings.youtube_client_secret,
+            no_browser=no_browser,
+            port=settings.oauth_localhost_port,
+        )
+        typer.echo(f"✅ Autenticazione riuscita! Token salvato in ~/.yctm/token.json")
+        typer.echo(f"   Scade il: {creds.expiry}")
+    except ValueError as exc:
+        typer.echo(f"❌ {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    except Exception as exc:
+        typer.echo(f"❌ Errore durante l'autenticazione: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
 @app.command("reset")
 def reset_videos_command(
     target: str = typer.Argument(help="Stato da resettare: 'retryable', 'terminal' o 'all'"),

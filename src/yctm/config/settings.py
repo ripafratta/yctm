@@ -15,3 +15,9 @@ class Settings(BaseSettings):
     transcripts_directory: Path = Path("data/transcripts")
     manifest_path: Path = Path("data/manifest.jsonl")
     max_results: int = 5
+
+    # OAuth 2.0 per YouTube Data API (captions.download)
+    youtube_client_id: str = ""
+    youtube_client_secret: str = ""
+    oauth_token_path: Path = Path.home() / ".yctm" / "token.json"
+    oauth_localhost_port: int = 8080
