@@ -35,10 +35,6 @@ from yctm.infrastructure.youtube.transcripts import (
 
 logger = logging.getLogger(__name__)
 
-# Delay in secondi tra richieste consecutive a youtube-transcript-api
-# per evitare blocchi IP da parte di YouTube.
-TRANSCRIPT_FETCH_DELAY = 2
-
 
 def register_playlist(api_key: str, session: Session, identifier: str) -> Playlist:
     """Registra una playlist nel database locale, risolvendola tramite YouTube Data API."""
@@ -75,6 +71,8 @@ def synchronize_playlist(
     transcripts_dir: str,
     max_results: int = 5,
     interactive: bool = False,
+    transcript_fetch_delay: int = 15,
+    cookies_path: str | None = None,
 ) -> SyncResult:
     """Sincronizza le trascrizioni dei video di una playlist."""
     result = SyncResult()
@@ -119,7 +117,10 @@ def synchronize_playlist(
             continue
 
         try:
-            text, language_code = extract_transcript(video_info.id)
+            text, language_code = extract_transcript(
+                video_info.id,
+                cookies_path=Path(cookies_path) if cookies_path else None,
+            )
         except TranscriptPermanentlyDisabledError:
             logger.info("Trascrizioni disabilitate per il video %s.", video_info.id)
             video.status = AcquisitionStatus.TERMINAL_ERROR
@@ -165,7 +166,7 @@ def synchronize_playlist(
             session.commit()
             result.stored += 1
         finally:
-            time.sleep(TRANSCRIPT_FETCH_DELAY)
+            time.sleep(transcript_fetch_delay)
 
     logger.info("Sincronizzazione playlist completata: %s", result.summary)
     return result

@@ -1,4 +1,23 @@
-"""OAuth 2.0 flow per YouTube Data API v3 (captions.download)."""
+"""
+OAuth 2.0 flow per YouTube Data API v3 (captions.download).
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ NOTA: Implementazione basata su YouTube Data API v3 captions.download.     ║
+║                                                                             ║
+║ PROBLEMA: L'endpoint captions.download richiede che l'app sia verificata   ║
+║ da Google OPPURE che l'account proprietario dei video abiliti il download   ║
+║ di caption di terze parti. Nella pratica, restituisce 403 Forbidden per     ║
+║ la quasi totalità dei video YouTube, rendendo questo approccio inutilizzabile║
+║ per uno scraper generico di trascrizioni.                                   ║
+║                                                                             ║
+║ SOSTITUITO DA: youtube-transcript-api (scraping via innertube), che non     ║
+║ necessita di OAuth e funziona per tutti i video con trascrizioni pubbliche. ║
+║ Vedi transcripts.py per l'implementazione attiva.                           ║
+║                                                                             ║
+║ Mantenuto come riferimento per eventuale utilizzo futuro qualora Google     ║
+║ dovesse approvare l'app o cambiare le policy di download.                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
 
 from __future__ import annotations
 

@@ -120,6 +120,8 @@ def sync_channel(
             str(settings.transcripts_directory),
             limit,
             interactive=interactive,
+            transcript_fetch_delay=settings.transcript_fetch_delay,
+            cookies_path=str(settings.cookies_path) if settings.cookies_path else None,
         )
         rebuild_manifest(session, settings.manifest_path)
         typer.echo(result.summary)
@@ -204,6 +206,8 @@ def sync_playlist_command(
             str(settings.transcripts_directory),
             limit,
             interactive=interactive,
+            transcript_fetch_delay=settings.transcript_fetch_delay,
+            cookies_path=str(settings.cookies_path) if settings.cookies_path else None,
         )
         rebuild_manifest(session, settings.manifest_path)
         typer.echo(result.summary)

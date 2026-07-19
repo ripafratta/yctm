@@ -1,4 +1,18 @@
-"""YouTube Data API v3 — chiamate a captions.list e captions.download."""
+"""
+YouTube Data API v3 — chiamate a captions.list e captions.download.
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ NOTA: Questa implementazione fa parte dell'approccio OAuth-based che è     ║
+║ stato sostituito da youtube-transcript-api (scraping via innertube).        ║
+║                                                                             ║
+║ PROBLEMA: captions.download fallisce con 403 per la maggior parte dei      ║
+║ video perché richiede permessi speciali (app verificata o contributor di    ║
+║ terze parti abilitato dal proprietario del video).                          ║
+║                                                                             ║
+║ Mantenuto come riferimento per eventuale utilizzo futuro.                   ║
+║ Vedi auth.py per maggiori dettagli.                                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+"""
 
 from __future__ import annotations
 

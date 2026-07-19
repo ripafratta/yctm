@@ -35,10 +35,6 @@ from yctm.infrastructure.youtube.transcripts import (
 
 logger = logging.getLogger(__name__)
 
-# Delay in secondi tra richieste consecutive a youtube-transcript-api
-# per evitare blocchi IP da parte di YouTube.
-TRANSCRIPT_FETCH_DELAY = 2
-
 
 class SyncResult:
     """Esito di una sincronizzazione."""
@@ -85,6 +81,8 @@ def synchronize_channel(
     transcripts_dir: str,
     max_results: int = 5,
     interactive: bool = False,
+    transcript_fetch_delay: int = 15,
+    cookies_path: str | None = None,
 ) -> SyncResult:
     """Sincronizza le trascrizioni degli ultimi video di un canale."""
     result = SyncResult()
@@ -129,7 +127,10 @@ def synchronize_channel(
             continue
 
         try:
-            text, language_code = extract_transcript(video_info.id)
+            text, language_code = extract_transcript(
+                video_info.id,
+                cookies_path=Path(cookies_path) if cookies_path else None,
+            )
         except TranscriptPermanentlyDisabledError:
             logger.info("Trascrizioni disabilitate per il video %s.", video_info.id)
             video.status = AcquisitionStatus.TERMINAL_ERROR
@@ -176,7 +177,7 @@ def synchronize_channel(
             session.commit()
             result.stored += 1
         finally:
-            time.sleep(TRANSCRIPT_FETCH_DELAY)
+            time.sleep(transcript_fetch_delay)
 
     logger.info("Sincronizzazione completata: %s", result.summary)
     return result
