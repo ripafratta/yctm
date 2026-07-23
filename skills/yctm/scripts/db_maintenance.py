@@ -40,7 +40,7 @@ def show_stats() -> None:
                    SUM(CASE WHEN v.status = 'stored' THEN 1 ELSE 0 END) as stored,
                    SUM(CASE WHEN v.status = 'terminal_error' THEN 1 ELSE 0 END) as terminal_error,
                    SUM(CASE WHEN v.status = 'retryable_error' THEN 1 ELSE 0 END) as retryable,
-                   SUM(CASE WHEN v.status = 'pending' THEN 1 ELSE 0 END) as pending
+                   SUM(CASE WHEN v.status = 'not_requested' THEN 1 ELSE 0 END) as not_requested
             FROM channels c
             LEFT JOIN videos v ON c.id = v.channel_id
             GROUP BY c.id
@@ -49,11 +49,11 @@ def show_stats() -> None:
 
         print("\n=== STATISTICHE DETTAGLIATE CANALI ===")
         for row in channel_stats:
-            title, cid, total, stored, terminal, retryable, pending = row
+            title, cid, total, stored, terminal, retryable, not_requested = row
             print(f"\nCanale: {title} ({cid})")
             print(f"  Totale video tracciati: {total}")
             print(f"  - Stored (acquisiti):  {stored or 0}")
-            print(f"  - Pending:             {pending or 0}")
+            print(f"  - Not Requested:       {not_requested or 0}")
             print(f"  - Retryable Error:     {retryable or 0}")
             print(f"  - Terminal Error:      {terminal or 0}")
 
@@ -63,31 +63,37 @@ def show_stats() -> None:
 
 
 def reset_errors(channel_id: str | None = None, video_id: str | None = None) -> None:
-    """Resetta gli stati di errore a pending per riprovare l'acquisizione."""
+    """Resetta gli stati di errore a not_requested per riprovare l'acquisizione."""
     try:
         conn = get_connection()
         cursor = conn.cursor()
 
         if video_id:
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos 
-                SET status = 'pending', attempt_count = 0, last_error = NULL 
+                SET status = 'not_requested', attempt_count = 0, last_error = NULL 
                 WHERE id = ? AND status = 'terminal_error'
-            """, (video_id,))
+            """,
+                (video_id,),
+            )
             affected = cursor.rowcount
             print(f"Resettato video {video_id}: {affected} record modificati.")
         elif channel_id:
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE videos 
-                SET status = 'pending', attempt_count = 0, last_error = NULL 
+                SET status = 'not_requested', attempt_count = 0, last_error = NULL 
                 WHERE channel_id = ? AND status = 'terminal_error'
-            """, (channel_id,))
+            """,
+                (channel_id,),
+            )
             affected = cursor.rowcount
             print(f"Resettati video per il canale {channel_id}: {affected} record modificati.")
         else:
             cursor.execute("""
                 UPDATE videos 
-                SET status = 'pending', attempt_count = 0, last_error = NULL 
+                SET status = 'not_requested', attempt_count = 0, last_error = NULL 
                 WHERE status = 'terminal_error'
             """)
             affected = cursor.rowcount
@@ -109,7 +115,7 @@ def main() -> None:
 
     # Command reset
     reset_parser = subparsers.add_parser(
-        "reset-errors", help="Resetta gli stati terminal_error a pending"
+        "reset-errors", help="Resetta gli stati terminal_error a not_requested"
     )
     reset_parser.add_argument("--channel", help="ID del canale specifico (UC...)")
     reset_parser.add_argument("--video", help="ID del video specifico")

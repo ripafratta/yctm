@@ -109,6 +109,31 @@ def list_playlist_videos(api_key: str, playlist_id: str, max_results: int) -> li
     return list_recent_videos(api_key, playlist_id, max_results)
 
 
+def fetch_video_by_id(api_key: str, video_id: str) -> VideoInfo:
+    """Recupera i dettagli di un singolo video tramite l'endpoint /videos."""
+    params = {"part": "snippet", "id": video_id}
+    response = _api_get(api_key, "/videos", params)
+    items: list[dict[str, Any]] = response.get("items", [])
+    if not items:
+        raise ChannelNotFoundError(f"Video con ID '{video_id}' non trovato.")
+    item = items[0]
+    snippet = item.get("snippet", {})
+    published_at_raw = snippet.get("publishedAt")
+    published_at = (
+        datetime.fromisoformat(published_at_raw.replace("Z", "+00:00"))
+        if published_at_raw
+        else None
+    )
+    return VideoInfo(
+        id=video_id,
+        channel_id=snippet.get("channelId", ""),
+        title=snippet.get("title", ""),
+        description=snippet.get("description", ""),
+        channel_title=snippet.get("channelTitle", ""),
+        published_at=published_at,
+    )
+
+
 def resolve_playlist(api_key: str, identifier: str) -> PlaylistInfo:
     """Risolve un identificativo di playlist (ID o URL) nei metadati della playlist."""
     clean = _extract_playlist_id(identifier)

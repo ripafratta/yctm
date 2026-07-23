@@ -6,6 +6,7 @@ from enum import StrEnum
 class AcquisitionStatus(StrEnum):
     """Stato di acquisizione di un video."""
 
+    NOT_REQUESTED = "not_requested"
     PENDING = "pending"
     STORED = "stored"
     RETRYABLE_ERROR = "retryable_error"

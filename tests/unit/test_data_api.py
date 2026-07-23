@@ -1,5 +1,7 @@
 """Test per il client YouTube Data API."""
 
+from typing import Any
+
 import httpx
 import pytest
 
@@ -12,7 +14,7 @@ from yctm.infrastructure.youtube.data_api import (
 )
 
 
-def _channel_response(channel_id: str, title: str, handle: str) -> dict:
+def _channel_response(channel_id: str, title: str, handle: str) -> dict[str, Any]:
     return {
         "items": [
             {
@@ -24,7 +26,7 @@ def _channel_response(channel_id: str, title: str, handle: str) -> dict:
     }
 
 
-def _playlist_response(video_ids: list[str]) -> dict:
+def _playlist_response(video_ids: list[str]) -> dict[str, Any]:
     items = []
     for vid in video_ids:
         items.append(
@@ -41,7 +43,7 @@ def _playlist_response(video_ids: list[str]) -> dict:
 
 
 def test_resolve_channel_by_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             200,
             json=_channel_response("UC1234567890123456789012", "Test Channel", "@test"),
@@ -57,7 +59,7 @@ def test_resolve_channel_by_id(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_channel_by_handle(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             200,
             json=_channel_response("UC1234567890123456789012", "Test", "@handle"),
@@ -70,7 +72,7 @@ def test_resolve_channel_by_handle(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_channel_by_url(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             200,
             json=_channel_response("UC1234567890123456789012", "Test", "@test"),
@@ -83,7 +85,7 @@ def test_resolve_channel_by_url(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_channel_url_with_uc_id(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             200,
             json=_channel_response("UC1234567890123456789012", "Test", "@test"),
@@ -99,7 +101,7 @@ def test_resolve_channel_url_with_uc_id(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 def test_resolve_channel_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(404, json={}, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "get", mock_get)
@@ -108,7 +110,7 @@ def test_resolve_channel_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_resolve_channel_quota_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             403,
             json={"error": {"code": 403, "message": "Quota exceeded"}},
@@ -126,7 +128,7 @@ def test_resolve_channel_invalid_identifier() -> None:
 
 
 def test_list_recent_videos(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(
             200,
             json=_playlist_response(["vid1", "vid2", "vid3"]),
@@ -141,7 +143,7 @@ def test_list_recent_videos(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_list_recent_videos_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         return httpx.Response(200, json={"items": []}, request=httpx.Request("GET", url))
 
     monkeypatch.setattr(httpx, "get", mock_get)
@@ -150,7 +152,7 @@ def test_list_recent_videos_empty(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_list_recent_videos_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    def mock_get(url, params=None, timeout=None):
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
         raise httpx.RequestError("Connection failed")
 
     monkeypatch.setattr(httpx, "get", mock_get)

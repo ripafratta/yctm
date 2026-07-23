@@ -3,26 +3,44 @@ YCTM(1)                     YCTM Manual                    YCTM(1)
 
 
 NOME
-       yctm — YouTube Channel Transcript Monitor
+       yctm — YouTube Source and Transcript Catalog
 
 SINTASSI
        yctm init-db [--verbose]
-       yctm channel [--verbose] <identificativo>
-       yctm sync [--verbose] [--max-results N] [--interactive] <channel-id>
-                               (default: valore da configurazione)
-       yctm playlist [--verbose] <identificativo>
-       yctm playlist-sync [--verbose] [--max-results N] [--interactive] <playlist-id>
-                               (default: valore da configurazione)
-       yctm manifest [--verbose]
+       yctm db upgrade [--verbose]
+
+       yctm channel add <identificativo>
+       yctm channel list
+       yctm channel remove <channel-id>
+
+       yctm playlist add <identificativo>
+       yctm playlist list
+       yctm playlist remove <playlist-id>
+
+       yctm discover channel <channel-id> [--max-results N] [--since YYYY-MM-DD] [--dry-run]
+       yctm discover playlist <playlist-id> [--max-results N] [--dry-run]
+       yctm discover all [--max-results N] [--dry-run]
+
+       yctm video list [--status S] [--channel C] [--playlist P] [--after YYYY-MM-DD] [--before YYYY-MM-DD] [--limit N] [--offset N] [--format table|json] [--order published-desc|published-asc]
+       yctm video show <video-id> [--format table|json]
+       yctm video discover <video-id>
+
+       yctm transcript fetch <video-id> [--cookies PATH]
+       yctm transcript status <video-id> [--format table|json]
+       yctm transcript reset [<video-id>] [--status S]
+       yctm transcript retry <video-id> [--cookies PATH]
+
+       yctm stats
+       yctm auth [--no-browser]   [SPERIMENTALE]
 
 DESCRIZIONE
-       YCTM e' uno strumento a riga di comando per l'acquisizione incrementale
-       di trascrizioni da canali e playlist YouTube. Le trascrizioni vengono
-       archiviate come documenti unitari su filesystem, senza subire processi
-       di chunking o modifica del contenuto originale. Un database SQLite
-       mantiene il registro di audit, la deduplicazione e la provenienza dei
-       dati. Un manifest JSONL viene pubblicato per l'ingestione da parte di
-       sistemi esterni (LLM Wiki).
+       YCTM e' uno strumento a riga di comando (CLI) per la registrazione delle
+       fonti YouTube (canali e playlist), il discovery dei metadati dei video e
+       il recupero puntuale delle trascrizioni.
+
+       YCTM e' un servizio locale, generico e neutrale: non gestisce concetti di
+       Knowledge Base (KB), rilevanza editoriale o pubblicazione di manifest per
+       consumer esterni.
 
        Il programma e' progettato per esecuzione on-demand e non introduce
        processi residenti, server o meccanismi di scheduling automatico.
@@ -31,141 +49,98 @@ DESCRIZIONE
 
 COMANDI
 
-   init-db
-       Inizializza il database SQLite creando lo schema delle tabelle
-       (channels, videos, transcript_files, playlists). Puo' essere eseguito
-       piu' volte senza effetti collaterali.
+   DATABASE
+       init-db, db init
+           Inizializza il database SQLite creando lo schema delle tabelle.
 
-       Opzioni:
-           -v, --verbose   Output di logging dettagliato
+       db upgrade
+           Esegue migrazioni leggere di schema su database SQLite preesistenti.
 
-   channel
-       Registra un canale YouTube nel database locale. L'identificativo puo'
-       essere:
+   FONTI CANALE
+       channel add <identificativo>
+           Registra un canale YouTube nel database locale (da ID UC..., handle @...
+           o URL).
 
-           un ID canonico       UC...
-           un handle            @nomecanale
-           un URL completo      https://www.youtube.com/@nomecanale
-                                https://www.youtube.com/channel/UC...
+       channel list
+           Elenca i canali registrati nel database.
 
-       Il comando interroga la YouTube Data API v3 per risolvere
-       l'identificativo e recuperare i metadati del canale. Se il canale e'
-       gia' presente, i metadati vengono aggiornati.
+       channel remove <channel-id>
+           Rimuove un canale dal database.
 
-       Opzioni:
-           -v, --verbose   Output di logging dettagliato
+   FONTI PLAYLIST
+       playlist add <identificativo>
+           Registra una playlist YouTube (da ID PL... o URL).
 
-       Codici di uscita:
-           0   Canale registrato correttamente
-           2   Canale non trovato
-           3   Errore API YouTube
-           4   Quota API superata
+       playlist list
+           Elenca le playlist registrate nel database.
 
-   sync
-       Sincronizza le trascrizioni degli ultimi video pubblicati da un canale
-       gia' registrato. Il comando esegue il discovery sulla playlist
-       automatica "Uploads" del canale, estrae le trascrizioni per ogni nuovo
-       video e aggiorna il database. Al termine rigenera automaticamente il
-       manifest JSONL.
+       playlist remove <playlist-id>
+           Rimuove una playlist dal database.
 
-       La sincronizzazione e' incrementale: se un video risulta gia' in stato
-       terminale (stored o terminal_error), la scansione si interrompe
-       anticipatamente assumendo che tutti i video precedenti siano gia' noti.
+   DISCOVERY METADATI
+       discover channel <channel-id>
+           Interroga la YouTube Data API v3 ed esegue il discovery dei metadati
+           video per un canale. Registra i nuovi video a catalogo con stato
+           not_requested. Non effettua alcuna estrazione di transcript.
 
-       La gerarchia di fallback per l'estrazione delle trascrizioni e':
-           1. Sottotitoli manuali in italiano
-           2. Sottotitoli manuali in inglese
-           3. Sottotitoli ASR (automatici) in italiano
-           4. Sottotitoli ASR (automatici) in inglese
+           Opzioni:
+               --max-results N     Numero massimo di video (default da config)
+               --since YYYY-MM-DD  Limita a video pubblicati da questa data
+               --dry-run           Simula il discovery senza salvare a DB
 
-       I video con trascrizioni disabilitate vengono marcati come
-       terminal_error. I video con trascrizione non ancora disponibile vengono
-       riprovati fino a 3 tentativi, dopodiche' passano a terminal_error.
+       discover playlist <playlist-id>
+           Esegue il discovery dei metadati per una playlist registrata.
 
-       Argomenti:
-           channel-id          ID del canale (UC...)
+       discover all
+           Esegue il discovery sequenziale per tutti i canali e le playlist registrati.
 
-       Opzioni:
-           --max-results N     Numero massimo di video da analizzare
-                               (default: valore da configurazione)
-           -i, --interactive   Chiede conferma prima di scaricare ogni
-                               trascrizione (utile per selezionare solo
-                               i video di interesse)
-           -v, --verbose       Output di logging dettagliato
+   CONSULTAZIONE CATALOGO
+       video list
+           Elenca i video catalogati con filtri opzionali (--status, --channel,
+           --playlist, --after, --before, --limit, --offset, --format table|json, --order).
 
-       Codici di uscita:
-           0   Sincronizzazione completata
-           2   Canale non registrato
-           3   Errore API YouTube
-           4   Quota API superata
+       video show <video-id>
+           Mostra le informazioni dettagliate di un singolo video (metadati, stato,
+           dettagli file transcript se presente).
 
-   playlist
-       Registra una playlist YouTube nel database locale. L'identificativo
-       puo' essere:
+       video discover <video-id>
+           Esegue il discovery puntuale di un singolo video da YouTube.
 
-           un ID playlist       PL...
-           un URL completo      https://www.youtube.com/playlist?list=PL...
+   TRASCRIZIONI
+       transcript fetch <video-id>
+           Scarica puntualmente il transcript per un video gia' presente nel catalogo
+           locale. Se il video non e' a catalogo, rifiuta l'operazione richiedendo
+           prima 'yctm video discover VIDEO_ID'.
 
-       Il comando interroga la YouTube Data API v3 per risolvere
-       l'identificativo e recuperare i metadati della playlist.
+       transcript status <video-id>
+           Mostra lo stato tecnico dell'acquisizione per un video.
 
-       Opzioni:
-           -v, --verbose   Output di logging dettagliato
+       transcript reset [<video-id>] [--status S]
+           Reimposta a not_requested lo stato di un video o di tutti i video con lo
+           stato specificato.
 
-       Codici di uscita:
-           0   Playlist registrata correttamente
-           2   Playlist non trovata
-           3   Errore API YouTube
-           4   Quota API superata
+       transcript retry <video-id>
+           Resetta e forza un nuovo tentativo di fetch per un video.
 
-   playlist-sync
-       Sincronizza le trascrizioni dei video appartenenti a una playlist gia'
-       registrata. La logica di sincronizzazione e' identica a sync: discovery
-       sulla playlist, estrazione delle trascrizioni con fallback linguistico,
-       deduplicazione globale ed early exit. Al termine rigenera il manifest
-       JSONL.
+   UTILITY E MANUTENZIONE
+       stats
+           Mostra le statistiche aggregate sul catalogo e sull'operativita'.
 
-       I video scoperti da una playlist condividono la stessa tabella videos
-       dei canali: se uno stesso video e' gia' stato acquisito tramite un
-       canale, non viene rielaborato.
-
-       Argomenti:
-           playlist-id         ID della playlist (PL...)
-
-       Opzioni:
-           --max-results N     Numero massimo di video da analizzare
-                               (default: valore da configurazione)
-           -i, --interactive   Chiede conferma prima di scaricare ogni
-                               trascrizione (utile per selezionare solo
-                               i video di interesse)
-           -v, --verbose       Output di logging dettagliato
-
-       Codici di uscita:
-           0   Sincronizzazione completata
-           2   Playlist non registrata
-           3   Errore API YouTube
-           4   Quota API superata
-
-   manifest
-       Rigenera il file manifest.jsonl a partire dallo stato corrente del
-       database e del filesystem. La scrittura e' atomica: il file viene
-       creato come temporaneo nella stessa directory e poi rinominato.
-
-       Opzioni:
-           -v, --verbose   Output di logging dettagliato
+       auth [SPERIMENTALE]
+           Esegue l'autenticazione OAuth 2.0 per YouTube Data API.
+           Nota: L'implementazione attiva delle trascrizioni usa youtube-transcript-api
+           (scraping via innertube) e non necessita di OAuth. Auth e' mantenuto come
+           riferimento sperimentale per eventuale uso futuro di captions.download.
 
 
 
 STATO DI ACQUISIZIONE
-       Ogni video nel database si trova in uno dei seguenti stati:
+       Ogni video nel database si trova in uno dei seguenti stati tecnici:
 
-       pending             In attesa di elaborazione
-       stored              Trascrizione acquisita e archiviata
-       retryable_error     Errore temporaneo, sara' riprovato
-       terminal_error      Errore permanente, non verra' riesaminato
-
-       Un video in stato stored o terminal_error e' considerato terminale e
-       interrompe la scansione incrementale (early exit).
+       not_requested       Video catalogato, nessun download del transcript richiesto
+       stored              Transcript estratto e archiviato con successo (terminale)
+       retryable_error     Download richiesto ma fallito per errore temporaneo
+       terminal_error      Download richiesto ma fallito definitivamente (disabilitato/tentativi esauriti) (terminale)
 
 
 
@@ -174,50 +149,31 @@ FILE
            File di configurazione delle variabili d'ambiente.
 
        data/yctm.sqlite3
-           Database SQLite contentente il registro di canali, playlist, video
+           Database SQLite contentente il catalogo di canali, playlist, video
            e file di trascrizione.
 
        data/transcripts/
            Directory contenente le trascrizioni in formato Markdown (.md). Ogni
-           file include frontmatter YAML con i metadati del video. Il nome di
-           ogni file e' composto da data, ID video e titolo sanificato.
-
-       data/manifest.jsonl
-           Manifest JSONL per l'integrazione con la LLM Wiki. Ogni riga e'
-           un oggetto JSON con i campi: video_id, channel_id, title,
-           published_at, status, last_error, storage_path, sha256,
-           language_code, extracted_at.
+           file include frontmatter YAML con i metadati del video.
 
 
 
 VARIABILI D'AMBIENTE
-       YCTM_YOUTUBE_API_KEY      (obbligatoria) Chiave API YouTube
-       YCTM_DATABASE_PATH        Percorso del database SQLite
-                                 (default: data/yctm.sqlite3)
-       YCTM_TRANSCRIPTS_DIRECTORY Directory di destinazione trascrizioni
-                                 (default: data/transcripts)
-       YCTM_MANIFEST_PATH        Percorso del file manifest JSONL
-                                 (default: data/manifest.jsonl)
-       YCTM_MAX_RESULTS          Numero massimo di video per sincronizzazione
-                                 (default: 5)
+       YCTM_YOUTUBE_API_KEY          (obbligatoria) Chiave API YouTube Data API v3
+       YCTM_DATABASE_PATH            Percorso del database SQLite (default: data/yctm.sqlite3)
+       YCTM_TRANSCRIPTS_DIRECTORY    Directory destinazione trascrizioni (default: data/transcripts)
+       YCTM_MAX_RESULTS              Numero massimo di risultati per discovery (default: 5)
+       YCTM_TRANSCRIPT_FETCH_DELAY   Delay in secondi tra tentativi transcript (default: 15)
+       YCTM_COOKIES_PATH             Percorso opzionale del file cookie Netscape
 
 
 
 CODICI DI USCITA
        0   Successo
-       2   Risorsa (canale/playlist) non trovata
+       1   Errore nei parametri di input o generico
+       2   Risorsa (canale/playlist/video) non trovata o non presente a catalogo
        3   Errore generico API YouTube o di rete
        4   Quota API YouTube superata
-
-
-
-NOTE
-       Le chiamate alla YouTube Data API v3 consumano quote giornaliere.
-       Si consiglia di mantenere il valore di max_results basso (5-10) e di
-       eseguire la sincronizzazione periodicamente per distribuire il carico.
-
-       Il progetto e' descritto in SPEC.md. Le regole operative per lo
-       sviluppo sono definite in AGENTS.md.
 
 
 
@@ -228,4 +184,5 @@ VEDERE ANCHE
 
 
 
-YCTM 0.1.0                      2026-07-12                      YCTM(1)
+YCTM 0.2.0                      2026-07-22                      YCTM(1)
+

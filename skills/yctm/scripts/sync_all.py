@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script di sincronizzazione batch per YCTM.
-Legge tutti i canali registrati nel database ed esegue il sync sequenziale.
+Script di discovery batch per YCTM.
+Legge tutti i canali registrati nel database ed esegue il discovery sequenziale.
 """
 
 import os
@@ -35,54 +35,54 @@ def get_registered_channels() -> list[tuple[str, str]]:
 
 
 def sync_all_channels() -> None:
-    """Esegue il sync per ciascun canale registrato."""
+    """Esegue il discovery per ciascun canale registrato."""
     channels = get_registered_channels()
     if not channels:
-        print("Nessun canale registrato da sincronizzare.")
+        print("Nessun canale registrato da elaborare.")
         return
 
-    print(f"Trovati {len(channels)} canali da sincronizzare.")
+    print(f"Trovati {len(channels)} canali da elaborare.")
     success_count = 0
     fail_count = 0
 
     for channel_id, title in channels:
         print("\n" + "=" * 60)
-        print(f"Sincronizzazione in corso: {title} ({channel_id})")
+        print(f"Discovery in corso: {title} ({channel_id})")
         print("=" * 60)
 
-        # Costruisce ed esegue il comando CLI yctm sync
-        cmd = ["yctm", "sync", channel_id]
+        # Costruisce ed esegue il comando CLI yctm discover channel
+        cmd = ["yctm", "discover", "channel", channel_id]
 
         try:
             result = subprocess.run(cmd, capture_output=False, text=True, check=False)
             if result.returncode == 0:
-                print(f"\n[OK] Sincronizzazione completata con successo per {title}.")
+                print(f"\n[OK] Discovery completato con successo per {title}.")
                 success_count += 1
             else:
-                print(f"\n[ERRORE] Il comando sync per {title} ha restituito: {result.returncode}")
+                print(f"\n[ERRORE] Il comando discover per {title} ha restituito: {result.returncode}")
                 fail_count += 1
         except FileNotFoundError:
             # Riprova eseguendo come modulo python se yctm non è installato globalmente
-            fallback_cmd = [sys.executable, "-m", "yctm.cli.app", "sync", channel_id]
+            fallback_cmd = [sys.executable, "-m", "yctm.cli.app", "discover", "channel", channel_id]
             try:
                 result = subprocess.run(fallback_cmd, capture_output=False, text=True, check=False)
                 if result.returncode == 0:
-                    print(f"\n[OK] Sincronizzazione completata con successo per {title}.")
+                    print(f"\n[OK] Discovery completato con successo per {title}.")
                     success_count += 1
                 else:
                     print(
-                        f"\n[ERRORE] Il comando sync per {title} ha restituito: {result.returncode}"
+                        f"\n[ERRORE] Il comando discover per {title} ha restituito: {result.returncode}"
                     )
                     fail_count += 1
             except Exception as e:
-                print(f"\n[ERRORE] Impossibile avviare il processo di sync per {title}: {e}")
+                print(f"\n[ERRORE] Impossibile avviare il processo di discover per {title}: {e}")
                 fail_count += 1
         except Exception as e:
-            print(f"\n[ERRORE] Errore inaspettato durante il sync di {title}: {e}")
+            print(f"\n[ERRORE] Errore inaspettato durante il discover di {title}: {e}")
             fail_count += 1
 
     print("\n" + "=" * 60)
-    print("Riepilogo Sincronizzazione Batch:")
+    print("Riepilogo Discovery Batch:")
     print(f"Canali elaborati con successo: {success_count}/{len(channels)}")
     if fail_count > 0:
         print(f"Canali falliti o con errori: {fail_count}/{len(channels)}")

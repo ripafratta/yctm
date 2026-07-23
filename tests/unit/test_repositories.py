@@ -86,3 +86,30 @@ def test_transcript_file_repository_returns_none_for_unknown_video(tmp_path: Pat
         stored = TranscriptFileRepository(session).get_by_video_id("inesistente")
 
     assert stored is None
+
+
+def test_video_repository_list_videos_and_reset(tmp_path: Path) -> None:
+    database_path = tmp_path / "yctm.sqlite3"
+    initialize_database(database_path)
+    sessions = create_session_factory(create_engine(database_path))
+
+    with sessions() as session:
+        v1 = Video(id="v1", title="V1", status="not_requested")
+        v2 = Video(id="v2", title="V2", status="retryable_error")
+        session.add_all([v1, v2])
+        session.commit()
+
+    with sessions() as session:
+        repo = VideoRepository(session)
+        not_req = repo.list_videos(status="not_requested")
+        assert len(not_req) == 1
+        assert not_req[0].id == "v1"
+
+        res = repo.reset_to_pending("retryable_error")
+        session.commit()
+        assert res == 1
+
+    with sessions() as session:
+        v2_reset = VideoRepository(session).get("v2")
+        assert v2_reset is not None
+        assert v2_reset.status == "not_requested"

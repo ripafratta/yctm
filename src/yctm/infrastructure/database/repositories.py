@@ -17,6 +17,18 @@ class ChannelRepository:
         """Restituisce il canale identificato, se presente."""
         return self._session.get(Channel, channel_id)
 
+    def all(self) -> list[Channel]:
+        """Restituisce tutti i canali registrati."""
+        return list(self._session.query(Channel).order_by(Channel.created_at.desc()).all())
+
+    def delete(self, channel_id: str) -> bool:
+        """Rimuove il canale specificato."""
+        channel = self.get(channel_id)
+        if channel:
+            self._session.delete(channel)
+            return True
+        return False
+
     def upsert(self, channel: Channel) -> Channel:
         """Inserisce o aggiorna il canale senza duplicarlo."""
         existing = self.get(channel.id)
@@ -49,8 +61,42 @@ class VideoRepository:
         """Restituisce tutti i video con lo stato specificato."""
         return list(self._session.query(Video).filter(Video.status == status).all())
 
+    def list_videos(
+        self,
+        status: str | None = None,
+        channel_id: str | None = None,
+        playlist_id: str | None = None,
+        after: datetime | None = None,
+        before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+        order: str = "published-desc",
+    ) -> list[Video]:
+        """Elenca i video catalogati applicando i filtri specificati."""
+        query = self._session.query(Video)
+        if status:
+            query = query.filter(Video.status == status)
+        if channel_id:
+            query = query.filter(Video.channel_id == channel_id)
+        if after:
+            query = query.filter(Video.published_at >= after)
+        if before:
+            query = query.filter(Video.published_at <= before)
+
+        if order == "published-asc":
+            query = query.order_by(Video.published_at.asc())
+        else:
+            query = query.order_by(Video.published_at.desc())
+
+        if limit > 0:
+            query = query.limit(limit)
+        if offset > 0:
+            query = query.offset(offset)
+
+        return list(query.all())
+
     def reset_to_pending(self, status_filter: str) -> int:
-        """Reimposta a pending tutti i video con lo stato indicato.
+        """Reimposta a not_requested tutti i video con lo stato indicato.
 
         Resetta anche attempt_count, last_attempt_at e last_error.
         Restituisce il numero di video modificati.
@@ -58,12 +104,24 @@ class VideoRepository:
         now = datetime.now()
         videos = self.find_by_status(status_filter)
         for video in videos:
-            video.status = "pending"
+            video.status = "not_requested"
             video.attempt_count = 0
             video.last_attempt_at = None
             video.last_error = None
             video.updated_at = now
         return len(videos)
+
+    def reset_video(self, video_id: str) -> bool:
+        """Reimposta a not_requested un singolo video."""
+        video = self.get(video_id)
+        if video:
+            video.status = "not_requested"
+            video.attempt_count = 0
+            video.last_attempt_at = None
+            video.last_error = None
+            video.updated_at = datetime.now()
+            return True
+        return False
 
 
 class TranscriptFileRepository:
@@ -93,6 +151,18 @@ class PlaylistRepository:
     def get(self, playlist_id: str) -> Playlist | None:
         """Restituisce la playlist identificata, se presente."""
         return self._session.get(Playlist, playlist_id)
+
+    def all(self) -> list[Playlist]:
+        """Restituisce tutte le playlist registrate."""
+        return list(self._session.query(Playlist).order_by(Playlist.created_at.desc()).all())
+
+    def delete(self, playlist_id: str) -> bool:
+        """Rimuove la playlist specificata."""
+        playlist = self.get(playlist_id)
+        if playlist:
+            self._session.delete(playlist)
+            return True
+        return False
 
     def upsert(self, playlist: Playlist) -> Playlist:
         """Inserisce o aggiorna la playlist senza duplicarla."""

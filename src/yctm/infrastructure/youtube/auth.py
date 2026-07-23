@@ -29,7 +29,7 @@ from typing import Any
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google_auth_oauthlib.flow import InstalledAppFlow  # type: ignore[import-untyped]
 
 from yctm.config.settings import Settings
 
@@ -47,20 +47,6 @@ def run_oauth_flow(
     no_browser: bool = False,
     port: int = 8080,
 ) -> Credentials:
-    """Avvia il flusso OAuth 2.0 desktop e restituisce le credenziali.
-
-    Args:
-        client_id: Client ID OAuth (da Google Cloud Console).
-        client_secret: Client Secret OAuth.
-        no_browser: Se True, usa modalità headless (codice su console).
-        port: Porta per il server locale OAuth (default 8080).
-
-    Returns:
-        Credenziali OAuth 2.0 con refresh token.
-
-    Raises:
-        ValueError: Se client_id o client_secret sono vuoti.
-    """
     if not client_id or not client_secret:
         raise ValueError(
             "YCTM_YOUTUBE_CLIENT_ID e YCTM_YOUTUBE_CLIENT_SECRET devono essere "
@@ -88,26 +74,16 @@ def run_oauth_flow(
 
     _save_token(creds)
     logger.info("Token OAuth salvato in %s", _TOKEN_FILE)
-    return creds
+    return creds  # type: ignore[no-any-return]
 
 
 def load_credentials(token_path: Path | None = None) -> Credentials | None:
-    """Carica le credenziali OAuth dal file token.
-
-    Esegue auto-refresh se il token è scaduto.
-
-    Args:
-        token_path: Percorso del file token.json. Se None, usa ~/.yctm/token.json.
-
-    Returns:
-        Credenziali valide o None se il file token non esiste.
-    """
     path = token_path or _TOKEN_FILE
     if not path.exists():
         return None
 
     try:
-        creds = Credentials.from_authorized_user_file(str(path), _SCOPES)
+        creds = Credentials.from_authorized_user_file(str(path), _SCOPES)  # type: ignore[no-untyped-call]
     except (json.JSONDecodeError, ValueError, OSError) as exc:
         logger.warning("File token corrotto (%s): %s", path, exc)
         return None
@@ -121,31 +97,18 @@ def load_credentials(token_path: Path | None = None) -> Credentials | None:
             logger.warning("Impossibile refrescare il token OAuth: %s", exc)
             return None
 
-    return creds
+    return creds  # type: ignore[no-any-return]
 
 
 def get_authenticated_client(settings: Settings | None = None) -> Any:
-    """Restituisce un client autenticato per la YouTube Data API v3.
-
-    Args:
-        settings: Istanza Settings (opzionale, caricata automaticamente se None).
-
-    Returns:
-        Resource googleapiclient.discovery per YouTube v3.
-
-    Raises:
-        ValueError: Se nessun token OAuth disponibile.
-    """
     if settings is None:
-        settings = Settings()  # type: ignore[call-arg]
+        settings = Settings()
 
     creds = load_credentials(settings.oauth_token_path)
     if creds is None or not creds.valid:
-        raise ValueError(
-            "Nessun token OAuth valido trovato. Esegui 'yctm auth' per autenticarti."
-        )
+        raise ValueError("Nessun token OAuth valido trovato. Esegui 'yctm auth' per autenticarti.")
 
-    from googleapiclient.discovery import build
+    from googleapiclient.discovery import build  # type: ignore[import-untyped]
 
     return build("youtube", "v3", credentials=creds)
 
@@ -154,5 +117,5 @@ def _save_token(creds: Credentials) -> None:
     """Salva le credenziali su disco."""
     _TOKEN_DIR.mkdir(parents=True, exist_ok=True)
     with open(_TOKEN_FILE, "w") as f:
-        f.write(creds.to_json())
+        f.write(creds.to_json())  # type: ignore[no-untyped-call]
     os.chmod(_TOKEN_FILE, 0o600)

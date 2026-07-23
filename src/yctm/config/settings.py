@@ -13,8 +13,7 @@ class Settings(BaseSettings):
     youtube_api_key: str = ""
     database_path: Path = Path("data/yctm.sqlite3")
     transcripts_directory: Path = Path("data/transcripts")
-    manifest_path: Path = Path("data/manifest.jsonl")
-    max_results: int = 3
+    max_results: int = 5
 
     # OAuth 2.0 per YouTube Data API (captions.download)
     youtube_client_id: str = ""

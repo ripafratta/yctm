@@ -76,7 +76,7 @@ def build_transcript_markdown(
     channel_handle: str | None = None,
     published_at: datetime | None = None,
     language_code: str = "",
-    description: str = "",
+    description: str | None = None,
 ) -> str:
     """Costruisce il contenuto Markdown con frontmatter YAML per una trascrizione."""
     now = datetime.now().isoformat()

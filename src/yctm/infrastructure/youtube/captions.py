@@ -47,7 +47,8 @@ def list_caption_tracks(client: Any, video_id: str) -> list[CaptionTrack]:
     Raises:
         Exception: Eventuali errori API (403, 404, etc.) propagate.
     """
-    request = client.captions().list(part="snippet", videoId=video_id)  # type: ignore[arg-type]
+    request = client.captions().list(part="snippet", videoId=video_id)
+
     response: dict[str, Any] = request.execute()
     items: list[dict[str, Any]] = response.get("items", [])
 
@@ -129,7 +130,8 @@ def download_caption(client: Any, caption_id: str) -> str:
     Raises:
         Exception: Eventuali errori API (403, 404, etc.) propagate.
     """
-    request = client.captions().download(id=caption_id, tfmt="srt")  # type: ignore[arg-type]
+    request = client.captions().download(id=caption_id, tfmt="srt")
+
     response = request.execute()
     if isinstance(response, bytes):
         return response.decode("utf-8")

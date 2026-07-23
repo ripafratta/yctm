@@ -21,7 +21,7 @@ import http.cookiejar
 import logging
 from pathlib import Path
 
-import requests
+import requests  # type: ignore[import-untyped]
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import NoTranscriptFound, TranscriptsDisabled
 from youtube_transcript_api._transcripts import Transcript, TranscriptList
@@ -158,7 +158,7 @@ def _get_api(cookies_path: Path | None) -> YouTubeTranscriptApi:
             session = None
 
     if session is not None:
-        session._yctm_cookies_path = cookies_path  # type: ignore[attr-defined]
+        session._yctm_cookies_path = cookies_path
 
     _shared_session = session
     _shared_api = YouTubeTranscriptApi(http_client=session)

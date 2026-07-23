@@ -41,3 +41,19 @@ def register_channel(api_key: str, session: Session, identifier: str) -> Channel
     session.commit()
     logger.info("Canale registrato: %s (%s).", result.title, result.id)
     return result
+
+
+def list_channels(session: Session) -> list[Channel]:
+    """Elenca tutti i canali registrati."""
+    repo = ChannelRepository(session)
+    return repo.all()
+
+
+def remove_channel(session: Session, channel_id: str) -> bool:
+    """Rimuove un canale dal database."""
+    repo = ChannelRepository(session)
+    success = repo.delete(channel_id)
+    if success:
+        session.commit()
+        logger.info("Canale '%s' rimosso.", channel_id)
+    return success
