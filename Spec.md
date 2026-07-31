@@ -48,7 +48,14 @@ Il database relazionale locale (SQLite) funge da registro delle fonti e catalogo
 * `last_error` (String, nullable): Messaggio dell'ultimo errore tecnico.
 * `created_at`, `updated_at` (DateTime).
 
+### Tabella di Associazione `playlist_videos`
+
+* `playlist_id` (String, Foreign Key, Primary Key): Riferimento alla playlist.
+* `video_id` (String, Foreign Key, Primary Key): Riferimento al video.
+* `added_at` (DateTime): Timestamp di associazione.
+
 ### Entità `TranscriptFile`
+
 
 * `id` (Integer, Primary Key).
 * `video_id` (String, Foreign Key, UNIQUE): Relazione 1:1 con `Video`.
