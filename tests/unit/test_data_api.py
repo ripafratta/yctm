@@ -158,3 +158,59 @@ def test_list_recent_videos_network_error(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(httpx, "get", mock_get)
     with pytest.raises(YouTubeAPIError):
         list_recent_videos("fake-key", "UU123", max_results=5)
+
+
+def test_resolve_channel_http_429_raises_youtube_api_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HTTP 429 Too Many Requests → YouTubeAPIError (rate limiting)."""
+
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
+        return httpx.Response(429, json={}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    with pytest.raises(YouTubeAPIError):
+        resolve_channel("fake-key", "@test")
+
+
+def test_resolve_channel_http_500_raises_youtube_api_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HTTP 500 Internal Server Error → YouTubeAPIError."""
+
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
+        return httpx.Response(500, json={}, request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    with pytest.raises(YouTubeAPIError):
+        resolve_channel("fake-key", "@test")
+
+
+def test_resolve_channel_json_error_body_quota_raises_quota_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Risposta 200 con corpo JSON che contiene un errore 403 → QuotaExceededError."""
+
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"error": {"code": 403, "message": "quotaExceeded"}},
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    with pytest.raises(QuotaExceededError):
+        resolve_channel("fake-key", "@test")
+
+
+def test_resolve_channel_json_error_body_generic_raises_youtube_api_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Risposta 200 con corpo JSON che contiene un errore non-quota → YouTubeAPIError."""
+
+    def mock_get(url: str, params: Any = None, timeout: Any = None) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"error": {"code": 400, "message": "invalid parameter"}},
+            request=httpx.Request("GET", url),
+        )
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    with pytest.raises(YouTubeAPIError):
+        resolve_channel("fake-key", "@test")
