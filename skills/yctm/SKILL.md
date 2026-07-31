@@ -150,28 +150,31 @@ yctm transcript fetch VIDEO_ID
 ### Discovery di Tutte le Fonti in un Comando
 
 ```bash
-yctm discover all --max-results 25
+yctm discover all [--max-results 25] [--dry-run]
 ```
 
-Esegue il discovery sequenziale per tutti i canali e playlist registrati.
+Esegue il discovery sequenziale dei metadati per tutti i canali e playlist registrati nel catalogo locale.
 
-### Script `sync_all.py`
+### Manutenzione e Reset del Catalogo
 
-Lo script `scripts/sync_all.py` itera su tutti i canali registrati e lancia `yctm discover channel` per ciascuno:
+Invece di utilizzare script diretti sul DB SQLite, utilizzare l'interfaccia CLI nativa:
+
+```bash
+# Visualizzare statistiche del catalogo
+yctm stats
+
+# Ripristinare i video in errore per permetterne il ri-tentativo
+yctm transcript reset VIDEO_ID                          # Singolo video
+yctm transcript reset --status retryable_error         # Per stato specifico
+yctm transcript reset --status terminal_error          # Reset errori terminali
+```
+
+### Script Deprecato `sync_all.py`
+
+Lo script `scripts/sync_all.py` è un wrapper di compatibilità verso `yctm discover all`:
 
 ```bash
 python3 skills/yctm/scripts/sync_all.py
-```
-
-### Script `db_maintenance.py`
-
-Manutenzione diretta del database SQLite:
-
-```bash
-python3 skills/yctm/scripts/db_maintenance.py stats
-python3 skills/yctm/scripts/db_maintenance.py reset-errors
-python3 skills/yctm/scripts/db_maintenance.py reset-errors --channel UC...
-python3 skills/yctm/scripts/db_maintenance.py reset-errors --video abc123
 ```
 
 ---
