@@ -739,6 +739,55 @@ def auth_command(
         raise typer.Exit(code=1) from exc
 
 
+@app.command("doctor")
+def doctor_cmd(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Log dettagliato"),
+) -> None:
+    """Verifica l'integrità del catalogo e del filesystem (file orfani e record mancanti)."""
+    _setup_logging(verbose)
+    settings = _get_settings()
+    session = _get_session(settings)
+
+    try:
+        from pathlib import Path
+
+        from yctm.infrastructure.database.models import TranscriptFile
+
+        transcripts_dir = Path(settings.transcripts_directory)
+        existing_files = (
+            {p.resolve() for p in transcripts_dir.glob("*.md")}
+            if transcripts_dir.exists()
+            else set()
+        )
+
+        db_records = session.query(TranscriptFile).all()
+        db_paths = {Path(r.storage_path).resolve() for r in db_records}
+
+        missing_on_disk = [r for r in db_records if not Path(r.storage_path).exists()]
+        orphaned_files = existing_files - db_paths
+
+        typer.echo("=== DIAGNOSTICA INTEGRITÀ CATALUTA/FILESYSTEM ===")
+        typer.echo(f"Trascrizioni registrate nel DB: {len(db_records)}")
+        typer.echo(f"File Markdown presenti su disco: {len(existing_files)}")
+        typer.echo(f"Record DB con file mancante su disco: {len(missing_on_disk)}")
+        typer.echo(f"File orfani su disco (non a DB): {len(orphaned_files)}")
+
+        if missing_on_disk:
+            typer.echo("\n⚠️  Record con file mancanti su disco:")
+            for r in missing_on_disk:
+                typer.echo(f"  - Video ID: {r.video_id} -> {r.storage_path}")
+
+        if orphaned_files:
+            typer.echo("\n⚠️  File orfani trovati su disco:")
+            for f in sorted(orphaned_files):
+                typer.echo(f"  - {f}")
+
+        if not missing_on_disk and not orphaned_files:
+            typer.echo("\n✅ Nessun problema di integrità riscontrato.")
+    finally:
+        session.close()
+
+
 @app.command("sync")
 def sync_deprecated(
     channel_id: str = typer.Argument(help="ID UC... del canale da analizzare"),

@@ -107,7 +107,23 @@ def fetch_transcript(
     video.status = AcquisitionStatus.STORED
     video.last_error = None
     video_repo.add(video)
-    session.commit()
+
+    try:
+        session.commit()
+    except Exception:
+        # Compensazione immediata: rimuovi il file orfano se il DB fallisce il commit
+        try:
+            Path(stored.storage_path).unlink(missing_ok=True)
+            logger.info("Compensazione effettuata: file orfano %s rimosso.", stored.storage_path)
+        except OSError as cleanup_exc:
+            logger.warning(
+                "Impossibile rimuovere il file orfano %s: %s",
+                stored.storage_path,
+                cleanup_exc,
+            )
+
+        raise
+
     logger.info("Transcript per video %s archiviato con successo.", video.id)
     return video
 

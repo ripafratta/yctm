@@ -205,3 +205,7 @@ def test_fetch_rolls_back_status_on_db_commit_failure(tmp_path: Path) -> None:
         assert v is not None
         # La sessione ha fatto rollback: lo stato non deve essere stored
         assert v.status == AcquisitionStatus.NOT_REQUESTED
+
+    # Compensazione verificata: il file scritto deve essere stato rimosso dal filesystem
+    files = list(transcripts_dir.glob("*.md"))
+    assert len(files) == 0, f"Il file orfano deve essere stato rimosso, trovati: {files}"
