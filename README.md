@@ -146,3 +146,5 @@ mypy .
 ## Contributi e Licenza
 
 Consulta [AGENTS.md](AGENTS.md) per le linee guida di contributo e gli standard di sviluppo del progetto.
+
+YCTM is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
