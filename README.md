@@ -1,6 +1,9 @@
 # YouTube Channel Transcript Monitor (YCTM)
 
+[![CI](https://github.com/ripafratta/yctm/actions/workflows/ci.yml/badge.svg)](https://github.com/ripafratta/yctm/actions/workflows/ci.yml)
+
 ## Scopo
+
 
 Questo documento è la fonte primaria per: l'introduzione generale a YCTM, i requisiti di sistema, le istruzioni di installazione, la configurazione iniziale ed il quickstart operativo.
 
