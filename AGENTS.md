@@ -1,313 +1,74 @@
-# AGENTS.md
+# AGENTS.md — Guida Operativa per Coding Agent e Manutentori
 
-## Ruolo del documento
+## Scopo
 
-Questo documento definisce le regole operative, architetturali e qualitative che devono essere rispettate durante lo sviluppo del progetto **YouTube Channel Transcript Monitor (YCTM)**.
+Questo documento è la fonte primaria per: gli standard di sviluppo, le regole architetturali non negoziabili, i comandi di verifica della qualità ed i criteri di Definition of Done per i maintainer e gli agenti di codifica automatizzata.
 
-La specifica funzionale del progetto è contenuta in `SPEC.md`. In caso di conflitto tra questo documento e la specifica funzionale, la specifica funzionale prevale per quanto riguarda i requisiti applicativi, mentre questo documento prevale per quanto riguarda gli standard implementativi.
+Non contiene: la specifica dei requisiti di prodotto (vedi [SPEC.md](SPEC.md)) o il manuale utente completo della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)).
 
----
-
-# Obiettivi del progetto
-
-YCTM è una applicazione CLI Python destinata alla registrazione delle fonti YouTube (canali e playlist), al discovery dei metadati dei video e all'acquisizione puntuale delle trascrizioni.
-
-YCTM è un catalogo locale, generico e neutrale: non gestisce logiche di Knowledge Base (KB), rilevanza semantica o integrazioni accoppiate con sistemi LLM esterni.
-
-Il progetto deve privilegiare:
-
-* semplicità operativa;
-* affidabilità dei dati raccolti;
-* tracciabilità delle operazioni;
-* manutenibilità del codice;
-* assenza di complessità infrastrutturale non necessaria.
-
-YCTM non deve introdurre componenti server, processi residenti o meccanismi di scheduling automatico.
-
+Documenti correlati:
+* [SPEC.md](SPEC.md) — Fonte primaria normativa per i requisiti funzionali.
+* [docs/architecture.md](docs/architecture.md) — Dettagli dell'architettura del software.
+* [docs/database.md](docs/database.md) — Regole e modelli del database SQLite.
 
 ---
 
-# Stack tecnologico
+## 1. Gerarchia delle Fonti di Verità
 
-Utilizzare esclusivamente tecnologie mature e ampiamente supportate.
-
-## Linguaggio
-
-* Python >= 3.12
-* codice tipizzato tramite type hints
-* gestione delle dipendenze tramite `pyproject.toml`
-
-## Componenti principali
-
-* CLI: Typer
-* Configurazione: pydantic-settings
-* ORM: SQLAlchemy 2.x
-* Database: SQLite
-* HTTP client: httpx
-* Test: pytest
-* Qualità codice: Ruff
-* Tipizzazione statica: mypy
+In caso di ambiguità o apparenti conflitti tra i documenti del repository:
+1. **`SPEC.md`** prevale per quanto riguarda i requisiti funzionali e di prodotto.
+2. **`AGENTS.md`** prevale per quanto riguarda gli standard implementativi, la qualità del codice e le regole operative di sviluppo.
+3. **Il Codice ed i Test (`src/` e `tests/`)** costituiscono l'autorità finale per determinare il comportamento effettivo del sistema ed il funzionamento corretto delle funzionalità esistenti.
 
 ---
 
-# Principi architetturali
+## 2. Principi Architetturali Non Negoziabili
 
-## Separazione delle responsabilità
-
-Il codice deve essere organizzato per livelli:
-
-```
-src/yctm/
-
-├── cli/
-│   └── comandi applicativi
-
-├── domain/
-│   └── modelli e logica di dominio
-
-├── application/
-│   └── casi d'uso e orchestrazione
-
-├── infrastructure/
-│   ├── database
-│   ├── youtube api
-│   └── filesystem
-
-└── config/
-    └── configurazione applicativa
-```
-
-La CLI deve contenere esclusivamente gestione dei comandi e validazione degli input.
-
-La logica applicativa non deve dipendere direttamente dalla CLI.
+* **CLI Sottile**: Il livello `src/yctm/cli/` deve occuparsi esclusivamente del parsing degli argomenti, della validazione degli input dell'utente e della formattazione dell'output.
+* **Livello Applicativo Indipendente**: I moduli in `src/yctm/application/` non devono importare `typer` né dipendere dal livello CLI.
+* **Infrastruttura Isolata**: Il database, le API di YouTube ed il filesystem risiedono in `src/yctm/infrastructure/` e sono isolati dalla logica di dominio.
+* **Separazione dei Dati**: Il testo dei transcript **non deve mai essere salvato nel database SQLite**. Il DB traccia unicamente i metadati e lo stato dell'acquisizione, mentre i transcript risiedono come file `.md` separati su filesystem.
+* **Logging Standard**: Usare unicamente il modulo standard `logging`. È vietato l'uso di `print()` nel codice applicativo.
+* **Gestione Errore Esplicita**: È vietato utilizzare blocchi silenziosi `except Exception: pass`. Ogni eccezione deve essere tipizzata o registrata nei log.
 
 ---
 
-# Gestione della configurazione
+## 3. Regole per Modifiche al Database e Migrazioni
 
-La configurazione deve essere esterna al codice.
-
-Regole:
-
-* utilizzare variabili ambiente o file `.env`;
-* non inserire chiavi API nel repository;
-* utilizzare `pydantic-settings`;
-* prevedere valori predefiniti ragionevoli.
-
-Esempi:
-
-* API key YouTube;
-* percorso database;
-* directory destinazione trascrizioni;
-* numero massimo di video analizzati.
+* Modifiche allo schema SQLAlchemy in `src/yctm/infrastructure/database/models.py` richiedono un aggiornamento corrispondente della funzione `upgrade_database` in `src/yctm/infrastructure/database/session.py` per garantire la compatibilità con i database SQLite esistenti.
+* La tabella di associazione tra `Playlist` e `Video` (`playlist_videos`) è una relazione molti-a-molti (N:M) gestita con chiave primaria composita `(playlist_id, video_id)` per garantire l'idempotenza degli inserimenti.
 
 ---
 
-# Modello dati
+## 4. Regole per Testing e Mocking
 
-SQLAlchemy deve essere utilizzato esclusivamente per:
-
-* persistenza dello stato;
-* deduplicazione;
-* audit trail.
-
-Il database non deve contenere il testo completo delle trascrizioni.
-
-Le trascrizioni devono essere salvate come documenti filesystem indipendenti.
-
-Relazioni principali:
-
-```
-Channel
-   |
-   └── Video
-          |
-          └── TranscriptFile
-```
-
-Ogni entità persistita deve avere:
-
-* identificativo stabile;
-* timestamp di creazione;
-* timestamp di aggiornamento ove necessario.
+* **Nessuna Chiamata Reale alle API**: I test automatici (`pytest`) non devono mai effettuare chiamate di rete reali verso YouTube Data API v3 o gli endpoint innertube.
+* Utilizzare `unittest.mock.patch` o fixture pytest per simulare risposte HTTP ed eccezioni API.
+* Ogni nuova funzionalità o correzione di bug deve includere corrispondenti test unitari o end-to-end (`tests/unit/`).
 
 ---
 
-# Gestione delle trascrizioni
+## 5. Comandi Obbligatori di Qualità
 
-Regole fondamentali:
-
-* non effettuare chunking;
-* non modificare il contenuto originale;
-* mantenere una trascrizione come documento unitario;
-* conservare metadati sufficienti alla provenienza del documento.
-
-La gerarchia di acquisizione deve essere:
-
-1. sottotitoli manuali;
-2. sottotitoli automatici YouTube ASR;
-3. gestione esplicita dell'assenza di trascrizione.
-
----
-
-# Integrazione YouTube
-
-Le chiamate API devono essere:
-
-* minimizzate;
-* facilmente testabili;
-* isolate dal dominio applicativo.
-
-La sincronizzazione deve essere incrementale:
-
-* analizzare gli ultimi N video;
-* confrontare gli identificativi già presenti;
-* interrompere la scansione al primo elemento noto.
-
-Non implementare crawling completo salvo esplicita richiesta.
-
----
-
-# Gestione errori
-
-Gli errori devono:
-
-* essere espliciti;
-* utilizzare eccezioni dedicate;
-* essere registrati tramite logging.
-
-Non utilizzare:
-
-```python
-except Exception:
-    pass
-```
-
-Gli errori recuperabili devono produrre messaggi CLI chiari.
-
----
-
-# Logging
-
-Utilizzare esclusivamente il modulo standard `logging`.
-
-Non utilizzare:
-
-```python
-print()
-```
-
-I messaggi devono distinguere:
-
-* informazioni operative;
-* warning;
-* errori;
-* attività di sincronizzazione.
-
----
-
-# Testing
-
-Ogni nuova funzionalità deve includere test.
-
-Obiettivi:
-
-* test unitari per logica di dominio;
-* mock delle API esterne;
-* test del comportamento incrementale;
-* test dei casi di errore.
-
-Le chiamate reali a YouTube API non devono essere richieste nei test automatici.
-
----
-
-# Qualità del codice
-
-Prima di considerare completata una modifica:
-
-Eseguire:
+Prima di considerare completata qualsiasi modifica, è **obbligatorio** eseguire la seguente sequenza e verificare che non vi siano errori:
 
 ```bash
 ruff check .
-ruff format .
+ruff format --check .
 pytest
 mypy .
 ```
 
-Il codice deve:
-
-* evitare duplicazioni;
-* utilizzare nomi descrittivi;
-* mantenere funzioni brevi;
-* preferire composizione rispetto a ereditarietà.
+Se la formattazione necessita di aggiustamenti, eseguire `ruff format .` prima dei controlli finali.
 
 ---
 
-# Gestione Git
+## 6. Definition of Done (DoD)
 
-Ogni modifica deve essere isolata in commit comprensibili.
-
-Esempi:
-
-```
-Add database models
-Implement youtube synchronization service
-Add transcript extraction fallback
-```
-
-Evitare commit generici:
-
-```
-fix
-update
-changes
-```
-
----
-
-# Documentazione
-
-Ogni modifica significativa deve aggiornare:
-
-* README.md;
-* documentazione tecnica se necessaria;
-* esempi CLI.
-
-La documentazione deve descrivere:
-
-* installazione;
-* configurazione;
-* utilizzo;
-* troubleshooting.
-
----
-
-# Regole per Codex
-
-Quando implementi nuove funzionalità:
-
-1. leggere sempre `SPEC.md`;
-2. analizzare il codice esistente prima di modificare;
-3. proporre un piano se la modifica coinvolge più componenti;
-4. evitare refactoring non richiesti;
-5. non introdurre dipendenze senza motivazione;
-6. mantenere il progetto funzionante dopo ogni modifica.
-
-Quando esistono più soluzioni possibili, privilegiare:
-
-* quella più semplice;
-* quella più facilmente manutenibile;
-* quella con meno dipendenze.
-
----
-
-# Definition of Done
-
-Una funzionalità è completata solo quando:
-
-* [ ] implementazione conforme a SPEC.md;
-* [ ] test aggiunti o aggiornati;
-* [ ] controlli qualità superati;
-* [ ] documentazione aggiornata;
-* [ ] nessun segreto presente nel repository;
-* [ ] comportamento verificabile da CLI.
+Una funzionalità o correzione è considerata completata solo quando:
+- [ ] L'implementazione è conforme a `SPEC.md`.
+- [ ] I test unitari ed e2e sono stati aggiunti o aggiornati e passano.
+- [ ] La sequenza di controlli di qualità (`ruff`, `pytest`, `mypy`) restituisce esito positivo senza errori.
+- [ ] La documentazione impattata in `docs/` o nei file radice è stata aggiornata.
+- [ ] Nessun segreto, chiave API o credential è presente nel repository.
+- [ ] Il comportamento è verificabile tramite riga di comando CLI.

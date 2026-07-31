@@ -5,14 +5,21 @@ description: "Advanced operations for YouTube Channel Transcript Monitor (YCTM).
 
 # YCTM Operations Skill
 
-Questa skill fornisce istruzioni operative, script e reference per l'utilizzo avanzato di **YCTM — YouTube Source and Transcript Catalog**.
+## Scopo
 
-> **Documentazione di riferimento:** Il manuale completo è [YCTM.1.md](../../YCTM.1.md) (formato man page).
-> **Installazione specifica per piattaforma:** vedi [references/](references/) per guide dedicate.
+Questo documento è la fonte primaria per: le istruzioni operative, i prerequisiti ed il workflow sintetico per gli agenti che utilizzano l'applicazione YCTM.
+
+Non contiene: la specifica normativa dei requisiti (vedi [SPEC.md](../../SPEC.md)), il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](../../docs/cli-reference.md)) o i dettagli architetturali del sistema (vedi [docs/architecture.md](../../docs/architecture.md)).
+
+Documenti correlati:
+* [SPEC.md](../../SPEC.md) — Requisiti funzionali normativi.
+* [docs/cli-reference.md](../../docs/cli-reference.md) — Riferimento completo della CLI.
+* [docs/troubleshooting.md](../../docs/troubleshooting.md) — Risoluzione dei problemi ed errori.
 
 ---
 
 ## 1. Architettura e Flusso Operativo
+
 
 YCTM si basa sul principio della **separazione tra metadati (SQLite) e contenuti (filesystem)**. Le trascrizioni sono salvate come file Markdown con frontmatter YAML, mai dentro il database.
 
