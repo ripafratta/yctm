@@ -10,7 +10,9 @@ La specifica funzionale del progetto è contenuta in `SPEC.md`. In caso di confl
 
 # Obiettivi del progetto
 
-YCTM è una applicazione CLI Python destinata alla raccolta incrementale di trascrizioni YouTube per alimentare una base documentale destinata a sistemi LLM.
+YCTM è una applicazione CLI Python destinata alla registrazione delle fonti YouTube (canali e playlist), al discovery dei metadati dei video e all'acquisizione puntuale delle trascrizioni.
+
+YCTM è un catalogo locale, generico e neutrale: non gestisce logiche di Knowledge Base (KB), rilevanza semantica o integrazioni accoppiate con sistemi LLM esterni.
 
 Il progetto deve privilegiare:
 
@@ -21,6 +23,7 @@ Il progetto deve privilegiare:
 * assenza di complessità infrastrutturale non necessaria.
 
 YCTM non deve introdurre componenti server, processi residenti o meccanismi di scheduling automatico.
+
 
 ---
 
