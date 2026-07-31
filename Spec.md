@@ -1,90 +1,80 @@
-# Specifica Architetturale: YouTube Channel Transcript Monitor (YCTM)
+# Specifica Normativa Architetturale e Funzionale (YCTM)
 
-Il presente documento definisce le specifiche architetturali di YCTM, uno strumento a riga di comando (CLI) ad esecuzione manuale (on-demand), finalizzato al discovery dei metadati da canali e playlist YouTube e all'estrazione puntuale delle trascrizioni.
+## Scopo
 
-YCTM è un **servizio locale, generico e neutrale di catalogazione delle fonti YouTube e di recupero controllato dei transcript**. Non conosce utilizzi editoriali, criteri di rilevanza né pubblica artefatti o manifest per i consumer esterni.
+Questo documento è la fonte primaria per: la specifica dei requisiti di prodotto, gli attori supportati, il modello operativo, la macchina a stati ed i non-obiettivi espliciti del sistema.
 
-## 1. Architettura Generale del Sistema
+Non contiene: esempi esaustivi d'uso della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)), la guida di sviluppo per gli agenti (vedi [AGENTS.md](AGENTS.md)) o la descrizione dei componenti tecnici ORM/SQLAlchemy (vedi [docs/database.md](docs/database.md)).
 
-Il sistema adotta un'architettura modulare priva di demoni in background. L'esecuzione è innescata esclusivamente da comandi impartiti dall'utente tramite CLI. I macro-componenti del sistema sono:
+Documenti correlati:
+* [README.md](README.md) — Panoramica e quickstart.
+* [docs/architecture.md](docs/architecture.md) — Architettura a livelli e flussi di sistema.
+* [docs/database.md](docs/database.md) — Modello dati ed entità relazionali.
+* [docs/adr/0001-neutral-source-catalog.md](docs/adr/0001-neutral-source-catalog.md) — ADR sul catalogo neutrale.
+* [docs/adr/0002-explicit-transcript-fetch.md](docs/adr/0002-explicit-transcript-fetch.md) — ADR su separazione discovery/fetch.
 
-* **Modulo di Interfaccia CLI:** Gestisce i parametri di input, il routing dei comandi e l'output a terminale (stdout/stderr) in formato tabellare o JSON. Implementato con **Typer**.
-* **Modulo di Configurazione:** Gestisce le variabili d'ambiente e il file `.env` tramite `pydantic-settings` (API key YouTube, percorsi database e trascrizioni, limite massimo risultati, delay).
-* **Modulo di Rilevamento (Discovery):** Interroga la YouTube Data API v3 per individuare nuovi video da canali, playlist o video singoli. Salva e aggiorna i metadati (`title`, `description`, `published_at`, `discovered_at`) ponendo lo stato a `not_requested`. Non scarica mai i transcript.
-* **Modulo di Estrazione (Transcript Fetch):** Scarica puntualmente su richiesta esplicita (`yctm transcript fetch VIDEO_ID`) il transcript per un video già censito nel catalogo locale, applicando una gerarchia di fallback linguistico (manuale IT → manuale EN → ASR IT → ASR EN).
-* **Livello di Persistenza e Governance:** Si affida a SQLAlchemy 2.x con motore SQLite locale per mantenere l'inventario di canali, playlist, video catalogati e transcript scaricati.
-* **Sottosistema di Archiviazione:** Salva le trascrizioni su filesystem in formato Markdown con frontmatter YAML, preservando l'unitarietà del documento.
+---
 
-## 2. Modello Dati e Livello di Persistenza
+## 1. Scopo del Sistema
 
-Il database relazionale locale (SQLite) funge da registro delle fonti e catalogo dei video scoperti.
+**YouTube Channel Transcript Monitor (YCTM)** è uno strumento a riga di comando (CLI) ad esecuzione manuale (*on-demand*) destinato alla registrazione delle fonti YouTube (canali e playlist), al discovery dei metadati dei video ed all'estrazione puntuale delle trascrizioni.
 
-### Entità `Channel`
+YCTM è un **catalogo locale, generico e neutrale** di fonti e video YouTube. Il sistema non conosce utilizzi editoriali, criteri di rilevanza o ranking e non genera né pubblica artefatti, manifest o esportazioni per consumatori esterni.
 
-* `id` (String, Primary Key): Identificativo canonico del canale (Prefisso `UC...`).
-* `handle` (String, nullable): Nome utente pubblico (es. `@NomeCanale`).
-* `title` (String): Titolo del canale.
-* `uploads_playlist_id` (String, UNIQUE): Identificativo della playlist dei caricamenti del canale.
-* `created_at`, `updated_at` (DateTime).
+---
 
-### Entità `Playlist`
+## 2. Attori ed Utilizzatori Ammessi
 
-* `id` (String, Primary Key): Identificativo canonico della playlist (prefisso `PL...`).
-* `title` (String): Titolo della playlist.
-* `channel_id` (String, Foreign Key, nullable): Collegamento al canale proprietario.
-* `created_at`, `updated_at` (DateTime).
+1. **Utente Umano**: Esegue comandi dalla CLI per gestire le fonti, monitorare il catalogo e scaricare trascrizioni di specifico interesse.
+2. **Script ed Automazioni Locali**: Invocano la CLI di YCTM come strumento di utilità privo di stato persistente proprio.
+3. **Agenti ed Applicazioni Esterne (es. Knowledge Base / LLM)**: Interagiscono con YCTM esclusivamente tramite l'interfaccia CLI pubblica o consultando direttamente i documenti Markdown generati sul filesystem locale.
 
-### Entità `Video`
+---
 
-* `id` (String, Primary Key): Identificativo del video YouTube.
-* `channel_id` (String, Foreign Key, nullable): Canale associato.
-* `title` (String): Titolo del video.
-* `description` (String, nullable): Descrizione completa del video.
-* `published_at` (DateTime, nullable): Data di pubblicazione su YouTube.
-* `discovered_at` (DateTime): Timestamp di inserimento nel catalogo YCTM.
-* `status` (String, default `not_requested`): Stato di acquisizione (`not_requested`, `stored`, `retryable_error`, `terminal_error`).
-* `attempt_count` (Integer, default 0): Numero di tentativi di download effettuati.
-* `last_attempt_at` (DateTime, nullable): Timestamp dell'ultimo tentativo.
-* `last_error` (String, nullable): Messaggio dell'ultimo errore tecnico.
-* `created_at`, `updated_at` (DateTime).
+## 3. Modello Operativo
 
-### Tabella di Associazione `playlist_videos`
+Il ciclo di vita operativo di YCTM è articolato su quattro fasi distinte:
 
-* `playlist_id` (String, Foreign Key, Primary Key): Riferimento alla playlist.
-* `video_id` (String, Foreign Key, Primary Key): Riferimento al video.
-* `added_at` (DateTime): Timestamp di associazione.
+```text
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│ 1. REGISTRAZIONE│───▶│ 2. DISCOVERY    │───▶│ 3. CONSULTAZIONE│───▶│ 4. FETCH        │
+│    FONTI        │    │    METADATI     │    │    CATALOGO     │    │    TRANSCRIPT   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+```
 
-### Entità `TranscriptFile`
+1. **Registrazione Fonti**: Registrazione nel database locale di canali (ID `UC...` o `@handle`) o playlist (ID `PL...`).
+2. **Discovery Metadati**: Interrogazione della YouTube Data API v3 per censire i video scoperti. Ogni video viene registrato con lo stato iniziale `not_requested`. **Nessuna chiamata all'estrattore di trascrizioni viene effettuata durante il discovery**.
+3. **Consultazione Catalogo**: Ispezione ed elencazione del catalogo locale tramite filtri (`status`, `channel`, `playlist`, date, ecc.) con output tabellare o JSON.
+4. **Fetch Puntuale Transcript**: Scaricamento ed archiviazione su filesystem del transcript per uno specifico video censito nel catalogo, innescato **esclusivamente su richiesta esplicita dell'utente o client**.
 
+---
 
-* `id` (Integer, Primary Key).
-* `video_id` (String, Foreign Key, UNIQUE): Relazione 1:1 con `Video`.
-* `storage_path` (String): Percorso del file `.md`.
-* `sha256` (String): Hash SHA-256 del file.
-* `language_code` (String): Lingua del transcript (es. `it`, `en`).
-* `extracted_at` (DateTime).
+## 4. Stati Tecnici di Acquisizione dei Video
 
-## 3. Macchina a Stati dei Video
+Lo stato del video riguarda **esclusivamente la gestione tecnica dell'acquisizione della trascrizione**:
 
-Gli stati riguardano esclusivamente l'acquisizione tecnica del transcript:
+* `not_requested`: Video scoperto e registrato nel catalogo locale; la trascrizione non è ancora stata richiesta.
+* `stored`: Trascrizione scaricata con successo e salvata come file Markdown nel filesystem (Stato terminale).
+* `retryable_error`: Richiesta di download fallita per un errore temporaneo (es. errore di rete, timeout HTTP, rate-limit 429).
+* `terminal_error`: Richiesta di download fallita in via definitiva (trascrizioni disabilitate dal creator, video privo di sottotitoli o 3 tentativi di retry esauriti) (Stato terminale).
 
-* `not_requested`: Video scoperto nel catalogo, trascrizione non ancora richiesta.
-* `stored`: Transcript estratto e archiviato con successo nel filesystem (terminale).
-* `retryable_error`: Download richiesto ma fallito per errore temporaneo (es. rete).
-* `terminal_error`: Download richiesto ma fallito definitivamente (trascrizioni disabilitate o tentativi esauriti) (terminale).
+---
 
-## 4. Flussi Operativi e CLI
+## 5. Non-Obiettivi Espliciti
 
-### Discovery Metadati
+YCTM **non deve**:
+* Integrazione diretta con LLM, librerie di AI generative o prompt engineering.
+* Gestione di Knowledge Base (KB), concetti di scope, review status, ranking o punteggi di rilevanza semantica.
+* Generazione di manifest JSONL, file di esportazione o feed destinati a consumer esterni.
+* Chunking, riassunto, traduzione automatica o modifica del testo originale delle trascrizioni.
+* Processi residenti in memoria, demoni di sottofondo o meccanismi di scheduling automatico.
+* Interfacce grafiche (GUI) o server web/REST.
 
-I comandi `yctm discover channel`, `yctm discover playlist`, `yctm discover all` e `yctm video discover VIDEO_ID` chiamano la YouTube Data API v3 per censire i video con stato `not_requested`. Non effettuano alcuna chiamata all'estrattore di sottotitoli.
+---
 
-### Consultazione Catalogo
+## 6. Criteri di Accettazione ad Alto Livello
 
-`yctm video list` mostra i video presenti nel catalogo con filtri (`--status`, `--channel`, `--playlist`, `--after`, `--before`, `--limit`, `--format table|json`).
-`yctm video show VIDEO_ID` restituisce le informazioni dettagliate di un singolo video.
-
-### Download Puntuale
-
-`yctm transcript fetch VIDEO_ID` richiede l'estrazione del transcript per un video già presente nel catalogo locale. Se il video non è a catalogo, l'operazione viene rifiutata indicando di eseguire prima `yctm video discover VIDEO_ID`.
-
+* **Neutralità e Tracciabilità**: Ogni trascrizione salvata deve essere un documento Markdown unitario completo di frontmatter YAML indicante provenienza (`video_id`, `channel_id`, `source`, `published_at`, `extracted_at`, `language`).
+* **Idempotenza**: La registrazione di fonti o video già presenti nel database non deve produrre duplicati o errori.
+* **Separazione Netta**: Nessuna operazione di discovery deve invocare servizi di estrazione trascrizioni (`youtube-transcript-api`).
+* **Sicurezza Transazionale**: In caso di errore durante il salvataggio o il commit su database durante un fetch, eventuali file orfani creati su disco devono essere immediatamente compensati tramite eliminazione.
