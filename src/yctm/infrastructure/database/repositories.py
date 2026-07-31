@@ -4,7 +4,13 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
-from yctm.infrastructure.database.models import Channel, Playlist, TranscriptFile, Video
+from yctm.infrastructure.database.models import (
+    Channel,
+    Playlist,
+    TranscriptFile,
+    Video,
+    playlist_videos,
+)
 
 
 class ChannelRepository:
@@ -78,6 +84,11 @@ class VideoRepository:
             query = query.filter(Video.status == status)
         if channel_id:
             query = query.filter(Video.channel_id == channel_id)
+        if playlist_id:
+            query = query.join(
+                playlist_videos,
+                Video.id == playlist_videos.c.video_id,
+            ).filter(playlist_videos.c.playlist_id == playlist_id)
         if after:
             query = query.filter(Video.published_at >= after)
         if before:
@@ -174,3 +185,21 @@ class PlaylistRepository:
         existing.title = playlist.title
         existing.channel_id = playlist.channel_id
         return existing
+
+    def add_video(self, playlist_id: str, video_id: str) -> None:
+        """Registra l'associazione playlist ↔ video in modo idempotente.
+
+        Non solleva eccezioni se la coppia esiste già (PK composita garantisce unicità).
+        """
+        from sqlalchemy.dialects.sqlite import insert
+
+        stmt = (
+            insert(playlist_videos)
+            .values(
+                playlist_id=playlist_id,
+                video_id=video_id,
+                added_at=datetime.now(),
+            )
+            .on_conflict_do_nothing()
+        )
+        self._session.execute(stmt)

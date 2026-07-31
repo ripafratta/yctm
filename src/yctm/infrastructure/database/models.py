@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy import Column, DateTime, ForeignKey, String, Table
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from yctm.domain.models import AcquisitionStatus
@@ -10,6 +10,27 @@ from yctm.domain.models import AcquisitionStatus
 
 class Base(DeclarativeBase):
     """Base dei modelli SQLAlchemy."""
+
+
+# Tabella di associazione molti-a-molti Playlist ↔ Video.
+# La PK composita (playlist_id, video_id) garantisce idempotenza per costruzione.
+playlist_videos = Table(
+    "playlist_videos",
+    Base.metadata,
+    Column(
+        "playlist_id",
+        String,
+        ForeignKey("playlists.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "video_id",
+        String,
+        ForeignKey("videos.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("added_at", DateTime, default=datetime.now),
+)
 
 
 class Channel(Base):
@@ -45,6 +66,10 @@ class Video(Base):
     transcript_file: Mapped["TranscriptFile | None"] = relationship(
         back_populates="video", uselist=False
     )
+    playlists: Mapped[list["Playlist"]] = relationship(
+        secondary=playlist_videos,
+        back_populates="videos",
+    )
 
     def register_failure(self, message: str) -> None:
         """Registra un errore e rende terminale il terzo tentativo."""
@@ -79,4 +104,8 @@ class Playlist(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.now, onupdate=datetime.now
+    )
+    videos: Mapped[list["Video"]] = relationship(
+        secondary=playlist_videos,
+        back_populates="playlists",
     )

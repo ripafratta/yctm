@@ -29,6 +29,21 @@ def upgrade_database(engine: Engine) -> None:
                     text("UPDATE videos SET discovered_at = created_at WHERE discovered_at IS NULL")
                 )
 
+    # Crea la tabella di associazione playlist_videos se non esiste (schema v0.3+).
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                CREATE TABLE IF NOT EXISTS playlist_videos (
+                    playlist_id TEXT NOT NULL
+                        REFERENCES playlists(id) ON DELETE CASCADE,
+                    video_id    TEXT NOT NULL
+                        REFERENCES videos(id)    ON DELETE CASCADE,
+                    added_at    DATETIME,
+                    PRIMARY KEY (playlist_id, video_id)
+                )
+            """)
+        )
+
 
 def initialize_database(database_path: Path = Path("data/yctm.sqlite3")) -> None:
     """Crea le tabelle e applica eventuali migrazioni leggere di schema."""

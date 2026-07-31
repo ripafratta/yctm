@@ -137,6 +137,9 @@ def discover_playlist(
         if existing is not None:
             logger.debug("Video %s già catalogato. Interruzione anticipata.", video_info.id)
             result.already_known += 1
+            # Registra l'associazione anche se il video era già noto (potrebbe mancare).
+            if not dry_run:
+                playlist_repo.add_video(playlist_id, video_info.id)
             break
 
         result.new_added += 1
@@ -150,6 +153,9 @@ def discover_playlist(
                 status=AcquisitionStatus.NOT_REQUESTED,
             )
             video_repo.add(video)
+            # Flush per rendere il video visibile prima di aggiungere l'associazione.
+            session.flush()
+            playlist_repo.add_video(playlist_id, video_info.id)
 
     if not dry_run:
         session.commit()
