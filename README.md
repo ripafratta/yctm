@@ -71,11 +71,14 @@ Questa impostazione si adatta perfettamente al modello architetturale di YCTM: c
 
 ---
 
-## Integrazione YCTM in LLM Wiki
+## Modelli di Integrazione con LLM Wiki
 
-Ecco le istruzioni passo passo per configurare e integrare **YCTM** all'interno della cartella di progetto di una **LLM Wiki** gestita da un agente locale (come Claude Code, Codex o altri agenti).
+YCTM può essere integrato all'interno di una LLM Wiki (o Knowledge Base locale) secondo due differenti pattern architetturali:
 
-### Passaggio 1: Configurazione dell'ambiente locale (`.env`)
+### Option A: Modello Embedded (Workspace Unificato)
+Indicato per progetti compatti o contesti in cui YCTM opera direttamente all'interno della directory della Wiki.
+
+**Passaggio 1: Configurazione dell'ambiente locale (`.env`)**
 Nella cartella radice della tua LLM Wiki, crea o aggiorna il file `.env` impostando il percorso del database SQLite e definendo la directory di destinazione per l'esportazione dei documenti, ad es. `Clippings`:
 
 ```ini
@@ -86,29 +89,27 @@ YCTM_MAX_RESULTS=10
 ```
 *Grazie a questa configurazione, ogni trascrizione scaricata da YCTM verrà archiviata come file Markdown con metadati YAML direttamente nella cartella `Clippings/` del progetto.*
 
-### Passaggio 2: Inizializzazione del Catalogo Locale
+**Passaggio 2: Inizializzazione del Catalogo Locale**
 Esegui il comando di inizializzazione per creare lo schema del database SQLite dedicato a questo specifico progetto:
 
 ```bash
 yctm init-db
 ```
 
-### Passaggio 3: Installazione della Skill YCTM per l'Agente
+**Passaggio 3: Installazione della Skill YCTM per l'Agente**
 Per consentire all'agente di interagire autonomamente con YCTM all'interno del progetto, collega la skill nella struttura del workspace:
 
-* **Per Claude Code o Codex (integrazione a livello di progetto)**:
+- Per Claude Code o Codex (integrazione a livello di progetto):
   ```bash
   mkdir -p .claude/skills
   ln -sf /percorso/sorgente/yctm/skills/yctm .claude/skills/yctm
   ```
-* **Per installazione globale (es. Claude Code utente)**:
+- Per installazione globale (es. Claude Code utente):
   ```bash
   unzip -o /percorso/sorgente/yctm/skills/yctm.skill -d ~/.claude/skills/
   ```
 
----
-
-### Passaggio 4: Registrazione delle Fonti del Dominio
+**Passaggio 4: Registrazione delle Fonti del Dominio**
 L'agente (o l'utente) censisce i canali o le playlist pertinenti per il dominio di conoscenza della Wiki:
 
 ```bash
@@ -119,24 +120,43 @@ yctm channel add "https://www.youtube.com/@CanaleSpecializzato"
 yctm playlist add "https://www.youtube.com/playlist?list=PL1234567890"
 ```
 
----
+**Passaggio 5: Flusso Operativo dell'Agente (Monitoraggio, Triage, Fetch e Ingestione)**
 
-### Passaggio 5: Flusso Operativo dell'Agente (Monitoraggio, Triage, Fetch e Ingestione)
-
-1. **Discovery (Monitoraggio nuovi contenuti)**: L'agente aggiorna il catalogo dei metadati tramite la YouTube Data API v3 senza scaricare i testi, registrando i nuovi video in stato `not_requested`:
+1. Discovery (Monitoraggio nuovi contenuti): L'agente aggiorna il catalogo dei metadati tramite la YouTube Data API v3 senza scaricare i testi, registrando i nuovi video in stato `not_requested`:
    ```bash
    yctm discover all
    ```
-2. **Consultazione e Triage (Valutazione)**: L'agente richiede l'elenco dei nuovi video catalogati in formato JSON per analizzare titoli e descrizioni:
+2. Consultazione e Triage (Valutazione): L'agente richiede l'elenco dei nuovi video catalogati in formato JSON per analizzare titoli e descrizioni:
    ```bash
    yctm video list --status not_requested --format json
    ```
-3. **Fetch del Transcript (Esportazione in `Clippings/`)**: Per i video giudicati rilevanti, l'agente avvia il download puntuale:
+3. Fetch del Transcript (Esportazione in `Clippings/`): Per i video giudicati rilevanti, l'agente avvia il download puntuale:
    ```bash
    yctm transcript fetch VIDEO_ID
    ```
    YCTM genera il file `.md` nella cartella `Clippings/` inserendo nel frontmatter YAML dati di provenienza quali `title`, `video_id`, `channel_title`, `published_at`, `language` e `source`.
-4. **Ingestione nella LLM Wiki**: L'agente legge i file Markdown generati in `Clippings/`, sintetizza le informazioni ed aggiorna le pagine o il grafo di conoscenza della LLM Wiki.
+4. Ingestione nella LLM Wiki: L'agente legge i file Markdown generati in `Clippings/`, sintetizza le informazioni ed aggiorna le pagine o il grafo di conoscenza della LLM Wiki.
+
+
+* **Pro e Contro**:
+  * **Vantaggi**: Configurazione immediata, nessun componente intermedio.
+  * **Svantaggi**: Lo spostamento o l'eliminazione dei file da `Clippings/` rende non valido lo `storage_path` nel database SQLite, generando segnalazioni con `yctm doctor`.
+
+
+### Option B: Modello Disaccoppiato (ETL Bridge / Archiviazione Permanente)
+
+* **Configurazione**: YCTM risiede in una directory autonoma gestita tramite variabile d'ambiente (`YCTM_ROOT`):
+  ```ini
+  YCTM_ROOT=/percorso/assoluto/yctm
+  ```
+* **Flusso**:
+  1. YCTM opera in modo neutrale salvando i file nel proprio archivio permanente (`$YCTM_ROOT/data/transcripts/`).
+  2. Un connettore ETL lato Wiki (es. `transfer_yctm.py`) interroga in sola lettura la tabella `videos` di `$YCTM_ROOT/data/yctm.sqlite3` per i record con stato `stored`.
+  3. Il connettore preleva il testo originale, lo arricchisce con i metadati di dominio presi dai cataloghi della Wiki (es. ruoli editoriali, orizzonte temporale, priorità) e deposita il file finale nella struttura del vault (es. `raw/YouTube/@handle/`).
+  4. L'avvenuto trasferimento viene tracciato nel registro di audit della Wiki (`logs/yctm_transfer_audit.jsonl`).
+* **Pro e Contro**:
+  * **Vantaggi**: Totale integrità del database YCTM (`yctm doctor` sempre valido) e arricchimento dei metadati di dominio senza inquinare lo schema neutrale di YCTM.
+  * **Svantaggi**: Richiede uno script di trasferimento intermedio.
 
 ---
 
