@@ -185,29 +185,87 @@ Se l'agente si basa su uno script automatico che scansiona fisicamente la cartel
 
 ## Installazione
 
-### Con uv (consigliato)
+Non occorre clonare o copiare il codice sorgente di YCTM (cartella src/yctm) all'interno dei singoli progetti LLM Wiki. Installando la CLI una sola volta nel tuo ambiente Python (ad esempio tramite `pip install -e .` o `uv tool install`) , il comando `yctm` sarà disponibile globalmente da terminale. Quando eseguirai `yctm` all'interno della directory di uno specifico progetto, il sistema caricherà automaticamente il file `.env` locale di quella cartella, operando in modo isolato sul database SQLite e sulla directory dei transcript definiti per quella Wiki.
+
+**Non devi assolutamente replicare la cartella `src/yctm` in ciascuna cartella di progetto.**
+
+YCTM è stato progettato per rimanere **un unico progetto a sé stante**. La CLI viene installata una sola volta sul sistema ed eseguita all'interno delle varie cartelle di progetto delle tue LLM Wiki.
+
+
+### Come funziona l'isolamento tra progetti
+
+YCTM legge la configurazione dal file `.env` situato nella **cartella di lavoro corrente** da cui lanci il comando.
+
+Grazie all'entry point `yctm` configurato in `pyproject.toml` (`[project.scripts] yctm = "yctm.cli.app:app"`), quando esegui `yctm` dal terminale:
+1. Il sistema individua l'eseguibile `yctm` dal `PATH` del tuo ambiente Python.
+2. YCTM rileva il file `.env` presente nella cartella in cui ti trovi in quel momento.
+3. Carica i percorsi definiti per `YCTM_DATABASE_PATH` e `YCTM_TRANSCRIPTS_DIRECTORY` ed opera esclusivamente sul database e sulla cartella di quella specifica Wiki.
+
+
+
+### Come distribuire e installare la CLI
+
+Ci sono tre modalità principali per rendere disponibile la CLI nel tuo ambiente:
+
+#### 1. Installazione globale isolata con `uv tool` (consigliato)
+Se utilizzi `uv`, puoi installare `yctm` come comando globale isolato a livello di sistema senza gestire virtualenv manuali:
 
 ```bash
+# Opzione A: Installazione diretta da GitHub (senza clonare)
+uv tool install git+https://github.com/ripafratta/yctm.git
+
+# Opzione B: Da repository clonato localmente
 git clone https://github.com/ripafratta/yctm.git && cd yctm
-uv sync                  # installa le dipendenze e crea il virtualenv
-uv sync --group dev      # include le dipendenze di sviluppo (test/lint)
+uv tool install .
 ```
 
-Verifica l'installazione:
+#### 2. Alternativa con `pipx` (CLI globale isolata)
+Se non usi `uv` ma preferisci `pipx` per gestire gli strumenti CLI isolati a livello utente:
 
 ```bash
-uv run yctm --help
+# Opzione A: Installazione diretta da GitHub
+pipx install git+https://github.com/ripafratta/yctm.git
+
+# Opzione B: Da repository clonato localmente
+git clone https://github.com/ripafratta/yctm.git && cd yctm
+pipx install .
 ```
 
-### Con pip (alternativa)
+#### 3. Installazione in modalità sviluppo (`pip install -e .`)
+Se vuoi modificare il codice sorgente di YCTM ed avere le modifiche subito trasparenti e disponibili per tutte le tue LLM Wiki:
 
 ```bash
 git clone https://github.com/ripafratta/yctm.git && cd yctm
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
-pip install -e ".[dev]"    # dipendenze sviluppo (opzionale)
+pip install -e ".[dev]"    # dipendenze di sviluppo (opzionale)
 ```
+
+#### Verifica dell'installazione
+In qualsiasi cartella ti trovi nel terminale, verifica che il comando `yctm` sia raggiungibile:
+
+```bash
+yctm --help
+```
+
+
+### Esempio di utilizzo pratico
+
+Una volta installata la CLI sul sistema, la gestione multi-catalogo diventa immediata:
+
+```bash
+# Lavori sulla Wiki di Finanza
+cd ~/projects/wiki-finanza
+yctm discover all   # Legge .env locale e aggiorna il DB di wiki-finanza
+
+# Sposti il lavoro sulla Wiki di Intelligenza Artificiale
+cd ~/projects/wiki-ai
+yctm discover all   # Legge .env locale e aggiorna il DB di wiki-ai
+```
+
+In ciascun progetto dovrai soltanto includere il file `.env` personalizzato e la Skill per l'agente (es. in `.claude/skills/yctm`).
+
 
 ---
 
