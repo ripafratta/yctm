@@ -4,10 +4,10 @@
 
 Questo documento è un **archivio storico** che traccia la motivazione, l'analisi iniziale e la transizione dal vecchio modello "sync & batch fetch" al modello "catalogo locale neutrale".
 
-**NOTA NORMATIVA**: Questo documento ha puro valore storico e di contesto. Per la specifica funzionale ed i comportamenti vigenti consultare [SPEC.md](../../SPEC.md) e gli [ADR in docs/adr/](../adr/).
+**NOTA NORMATIVA**: Questo documento ha puro valore storico e di contesto. Per la specifica funzionale ed i comportamenti vigenti consultare [SPEC.md](SPEC.md) e gli [ADR in docs/adr/](../adr/).
 
 Documenti correlati:
-* [SPEC.md](../../SPEC.md) — Fonte primaria normativa.
+* [SPEC.md](SPEC.md) — Fonte primaria normativa.
 * [docs/adr/0001-neutral-source-catalog.md](../adr/0001-neutral-source-catalog.md) — ADR sul catalogo neutrale.
 * [docs/adr/0002-explicit-transcript-fetch.md](../adr/0002-explicit-transcript-fetch.md) — ADR su separazione discovery/fetch.
 

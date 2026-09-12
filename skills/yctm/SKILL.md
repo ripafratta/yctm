@@ -9,10 +9,10 @@ description: "Advanced operations for YouTube Channel Transcript Monitor (YCTM).
 
 Questo documento è la fonte primaria per: le istruzioni operative, i prerequisiti ed il workflow sintetico per gli agenti che utilizzano l'applicazione YCTM.
 
-Non contiene: la specifica normativa dei requisiti (vedi [SPEC.md](../../SPEC.md)), il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](../../docs/cli-reference.md)) o i dettagli architetturali del sistema (vedi [docs/architecture.md](../../docs/architecture.md)).
+Non contiene: la specifica normativa dei requisiti (vedi [SPEC.md](SPEC.md)), il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](../../docs/cli-reference.md)) o i dettagli architetturali del sistema (vedi [docs/architecture.md](../../docs/architecture.md)).
 
 Documenti correlati:
-* [SPEC.md](../../SPEC.md) — Requisiti funzionali normativi.
+* [SPEC.md](SPEC.md) — Requisiti funzionali normativi.
 * [docs/cli-reference.md](../../docs/cli-reference.md) — Riferimento completo della CLI.
 * [docs/troubleshooting.md](../../docs/troubleshooting.md) — Risoluzione dei problemi ed errori.
 
@@ -145,8 +145,8 @@ yctm transcript fetch VIDEO_ID --cookies data/cookies.txt
 YCTM rispetta le variabili d'ambiente standard per proxy HTTP/S:
 
 ```bash
-export HTTP_PROXY="http://user:pass@proxy.example.com:8080"
-export HTTPS_PROXY="http://user:pass@proxy.example.com:8080"
+export HTTP_PROXY="http://<user>:<pass>@proxy.example.com:8080"
+export HTTPS_PROXY="http://<user>:<pass>@proxy.example.com:8080"
 yctm transcript fetch VIDEO_ID
 ```
 

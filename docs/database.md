@@ -7,7 +7,7 @@ Questo documento è la fonte primaria per: lo schema del database SQLite, la des
 Non contiene: la guida ai comandi CLI per il database (vedi [docs/cli-reference.md](cli-reference.md)) o le decisioni architetturali di alto livello (vedi [docs/architecture.md](architecture.md)).
 
 Documenti correlati:
-* [SPEC.md](../SPEC.md) — Requisiti funzionali normativi.
+* [SPEC.md](SPEC.md) — Requisiti funzionali normativi.
 * [docs/architecture.md](architecture.md) — Architettura del software.
 * [docs/adr/0003-playlist-video-many-to-many.md](adr/0003-playlist-video-many-to-many.md) — ADR sulla relazione N:M.
 

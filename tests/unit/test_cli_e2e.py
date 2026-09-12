@@ -17,6 +17,7 @@ from yctm.infrastructure.database.session import (
     create_session_factory,
     initialize_database,
 )
+from yctm.infrastructure.youtube.transcripts import TranscriptExtractionError
 
 
 def _env(tmp_path: Path) -> dict[str, str]:
@@ -205,6 +206,21 @@ def test_cli_transcript_fetch_video_not_in_catalog_returns_exit_2(tmp_path: Path
     runner.invoke(app, ["init-db"], env=_env(tmp_path))
     result = runner.invoke(app, ["transcript", "fetch", "not_in_db"], env=_env(tmp_path))
     assert result.exit_code == 2
+
+
+def test_cli_transcript_fetch_prints_rate_limit_warning(tmp_path: Path) -> None:
+    """Verifica che in caso di errore 429 la CLI mostri l'avviso sui cookie."""
+    _seed_db(tmp_path)
+    runner = CliRunner()
+    with patch(
+        "yctm.application.transcripts.extract_transcript",
+        side_effect=TranscriptExtractionError("HTTP 429 Too Many Requests"),
+    ):
+        result = runner.invoke(app, ["transcript", "fetch", "vid1"], env=_env(tmp_path))
+
+    assert result.exit_code == 0
+    assert "Tip: YouTube potrebbe aver applicato un blocco IP" in result.output
+    assert "--cookies data/cookies.txt" in result.output
 
 
 # ---------------------------------------------------------------------------

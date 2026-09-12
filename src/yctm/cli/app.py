@@ -69,6 +69,24 @@ def _parse_date(date_str: str | None) -> datetime | None:
             raise typer.Exit(code=1) from exc
 
 
+def _check_rate_limit_warning(last_error: str | None) -> None:
+    """Stampa un messaggio d'avviso se l'errore indica blocchi IP o rate-limiting."""
+    if not last_error:
+        return
+    err_msg = last_error.lower()
+    keywords = ["429", "too many requests", "rate", "block", "ip", "impossibile accedere"]
+    if any(kw in err_msg for kw in keywords):
+        typer.echo(
+            "\n💡 Tip: YouTube potrebbe aver applicato un blocco IP o un limite di "
+            "richieste (HTTP 429).\n"
+            "   Per superare il blocco, esporta i cookie da una sessione browser autenticata "
+            "in formato Netscape\n"
+            "   e passali con '--cookies data/cookies.txt' oppure imposta YCTM_COOKIES_PATH "
+            "nel file .env.",
+            err=True,
+        )
+
+
 # -----------------------------------------------------------------------------
 # Database Commands
 # -----------------------------------------------------------------------------
@@ -587,6 +605,7 @@ def transcript_fetch_cmd(
             typer.echo(
                 f"⚠️ Operazione completata con stato: {video.status}. Errore: {video.last_error}"
             )
+            _check_rate_limit_warning(video.last_error)
     except VideoNotDiscoveredError as exc:
         typer.echo(f"Errore: {exc}", err=True)
         raise typer.Exit(code=2) from exc
@@ -676,6 +695,8 @@ def transcript_retry_cmd(
             cookies_path=cookies or (str(settings.cookies_path) if settings.cookies_path else None),
         )
         typer.echo(f"Retry completato per {video_id}. Nuovo stato: {video.status}")
+        if video.status != "stored":
+            _check_rate_limit_warning(video.last_error)
     finally:
         session.close()
 

@@ -1,10 +1,10 @@
-# Specifica Normativa Architetturale e Funzionale (YCTM)
+# Specifica Architetturale e Funzionale (YCTM)
 
 ## Scopo
 
 Questo documento è la fonte primaria per: la specifica dei requisiti di prodotto, gli attori supportati, il modello operativo, la macchina a stati ed i non-obiettivi espliciti del sistema.
 
-Non contiene: esempi esaustivi d'uso della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)), la guida di sviluppo per gli agenti (vedi [AGENTS.md](AGENTS.md)) o la descrizione dei componenti tecnici ORM/SQLAlchemy (vedi [docs/database.md](docs/database.md)).
+Non contiene: esempi esaustivi d'uso della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)), la guida di sviluppo per i coding agents (vedi [AGENTS.md](AGENTS.md)) o la descrizione dei componenti tecnici ORM/SQLAlchemy (vedi [docs/database.md](docs/database.md)).
 
 Documenti correlati:
 * [README.md](README.md) — Panoramica e quickstart.
@@ -45,7 +45,7 @@ Il ciclo di vita operativo di YCTM è articolato su quattro fasi distinte:
 1. **Registrazione Fonti**: Registrazione nel database locale di canali (ID `UC...` o `@handle`) o playlist (ID `PL...`).
 2. **Discovery Metadati**: Interrogazione della YouTube Data API v3 per censire i video scoperti. Ogni video viene registrato con lo stato iniziale `not_requested`. **Nessuna chiamata all'estrattore di trascrizioni viene effettuata durante il discovery**.
 3. **Consultazione Catalogo**: Ispezione ed elencazione del catalogo locale tramite filtri (`status`, `channel`, `playlist`, date, ecc.) con output tabellare o JSON.
-4. **Fetch Puntuale Transcript**: Scaricamento ed archiviazione su filesystem del transcript per uno specifico video censito nel catalogo, innescato **esclusivamente su richiesta esplicita dell'utente o client**.
+4. **Fetch Transcript**: Scaricamento ed archiviazione su filesystem del transcript per uno specifico video censito nel catalogo, innescato **esclusivamente su richiesta esplicita dell'utente o client**.
 
 ---
 
@@ -78,3 +78,21 @@ YCTM **non deve**:
 * **Idempotenza**: La registrazione di fonti o video già presenti nel database non deve produrre duplicati o errori.
 * **Separazione Netta**: Nessuna operazione di discovery deve invocare servizi di estrazione trascrizioni (`youtube-transcript-api`).
 * **Sicurezza Transazionale**: In caso di errore durante il salvataggio o il commit su database durante un fetch, eventuali file orfani creati su disco devono essere immediatamente compensati tramite eliminazione.
+
+## 7. Precisazioni sull'uso di YouTube Data API v3 
+
+**a) Per l'estrazione delle trascrizioni NON serve alcuna API Key**
+
+Per scaricare il testo delle trascrizioni non serve alcuna API key né credenziale Google/OAuth.
+
+In passato è stato valutato l'uso dell'endpoint ufficiale `captions.download` di YouTube Data API v3 con OAuth 2.0, ma è stato abbandonato/sospeso perché restituiva errori 403 Forbidden sulla maggior parte dei video pubblici.
+
+Attualmente YCTM usa `youtube-transcript-api` (scraping via protocollo interno Innertube di YouTube, definito in `src/yctm/infrastructure/youtube/transcripts.py`).
+
+**b) Per il discovery e la risoluzione dei metadati serve la Data API v3**
+
+La chiave `YOUTUBE_API_KEY` (YouTube Data API v3) esiste ancora nel codice ed è usata da `src/yctm/infrastructure/youtube/data_api.py` esclusivamente per:
+
+- Risolvere gli handle o URL dei canali/playlist (es. `@nomecanale` → ID canale UC...).
+- Elencare gli ultimi video pubblicati da un canale/playlist durante il comando `sync` o `discover`.
+- Recuperare titoli, descrizioni e date di pubblicazione ufficiali dei video.

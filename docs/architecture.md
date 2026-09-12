@@ -7,7 +7,7 @@ Questo documento è la fonte primaria per: la descrizione dell'architettura soft
 Non contiene: il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)) o il dettaglio dello schema del database (vedi [docs/database.md](docs/database.md)).
 
 Documenti correlati:
-* [SPEC.md](../SPEC.md) — Requisiti funzionali e modello operativo.
+* [SPEC.md](SPEC.md) — Requisiti funzionali e modello operativo.
 * [docs/database.md](database.md) — Dettagli sul livello di persistenza.
 * [docs/adr/0001-neutral-source-catalog.md](adr/0001-neutral-source-catalog.md) — ADR sul catalogo neutrale.
 * [docs/adr/0002-explicit-transcript-fetch.md](adr/0002-explicit-transcript-fetch.md) — ADR su separazione discovery/fetch.

@@ -4,7 +4,7 @@
 
 Questo documento è la fonte primaria per: la diagnosi, la gestione delle eccezioni, la mitigazione degli errori tecnici e le procedure di ripristino operativo in YCTM.
 
-Non contiene: la specifica dei requisiti (vedi [SPEC.md](../SPEC.md)) o il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](cli-reference.md)).
+Non contiene: la specifica dei requisiti (vedi [SPEC.md](SPEC.md)) o il riferimento completo dei comandi CLI (vedi [docs/cli-reference.md](cli-reference.md)).
 
 Documenti correlati:
 * [docs/cli-reference.md](cli-reference.md) — Riferimento comandi CLI.
@@ -18,7 +18,7 @@ Documenti correlati:
 * **Causa**: La variabile d'ambiente `YCTM_YOUTUBE_API_KEY` non è stata impostata o il file `.env` non è presente.
 * **Soluzione**: Verificare che il file `.env` esista nella radice del progetto e contenga una chiave valida per le YouTube Data API v3:
   ```ini
-  YCTM_YOUTUBE_API_KEY=AIzaSy...
+  YCTM_YOUTUBE_API_KEY=<YOUR_API_KEY>
   ```
 
 ### Errore: `QuotaExceededError` (Exit Code 4)

@@ -1,10 +1,12 @@
-# AGENTS.md — Guida Operativa per Coding Agent e Manutentori
+# Guida Operativa per Coding Agent e Manutentori
 
 ## Scopo
 
+**Nota sul target del documento:** Questo file è destinato esclusivamente agli **Agenti di Sviluppo (Coding Agent)** e ai maintainer che modificano il codice sorgente del repository. Gli **Agenti Operativi (Consumer)** che utilizzano YCTM come strumento CLI esterno (es. in pipeline di ingestione per Knowledge Base) devono fare riferimento alla guida operativa definita in `skills/yctm/SKILL.md`.
+
 Questo documento è la fonte primaria per: gli standard di sviluppo, le regole architetturali non negoziabili, i comandi di verifica della qualità ed i criteri di Definition of Done per i maintainer e gli agenti di codifica automatizzata.
 
-Non contiene: la specifica dei requisiti di prodotto (vedi [SPEC.md](SPEC.md)) o il manuale utente completo della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)).
+Non contiene: la specifica dei requisiti di prodotto (vedi [SPEC.md](SPEC.md)) o il manuale utente della CLI (vedi [docs/cli-reference.md](docs/cli-reference.md)).
 
 Documenti correlati:
 * [SPEC.md](SPEC.md) — Fonte primaria normativa per i requisiti funzionali.

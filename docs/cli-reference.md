@@ -4,7 +4,7 @@
 
 Questo documento è la fonte primaria per: il riferimento completo dei comandi, sotto-comandi, opzioni, sintassi, codici di uscita e formati di output dell'interfaccia a riga di comando YCTM.
 
-Non contiene: la specifica dei requisiti di prodotto (vedi [SPEC.md](../SPEC.md)) o i principi di progettazione architetturale (vedi [docs/architecture.md](architecture.md)).
+Non contiene: la specifica dei requisiti di prodotto (vedi [SPEC.md](SPEC.md)) o i principi di progettazione architetturale (vedi [docs/architecture.md](architecture.md)).
 
 Documenti correlati:
 * [README.md](../README.md) — Installazione e quickstart.
